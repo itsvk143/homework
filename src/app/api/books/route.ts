@@ -177,3 +177,188 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to create book" }, { status: 500 });
   }
 }
+
+export async function PUT(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const {
+      id,
+      subjectId,
+      name,
+      classGrade,
+      author,
+      publisher,
+      isbn,
+      description,
+      coverUrl,
+      displayOrder,
+      curriculumType,
+      bookType,
+      exam,
+      branch,
+      edition,
+      language,
+      status,
+      chapters,
+    } = body;
+
+    if (!id || !name?.trim()) {
+      return NextResponse.json({ error: "Book ID and name are required" }, { status: 400 });
+    }
+
+    // 1. Update book metadata
+    await prisma.book.update({
+      where: { id },
+      data: {
+        ...(subjectId ? { subjectId } : {}),
+        name: name.trim(),
+        ...(classGrade ? { classGrade } : {}),
+        ...(curriculumType ? { curriculumType } : {}),
+        ...(bookType ? { bookType } : {}),
+        exam: exam !== undefined ? (exam || null) : undefined,
+        branch: branch !== undefined ? (branch || null) : undefined,
+        edition: edition !== undefined ? edition : undefined,
+        language: language !== undefined ? language : undefined,
+        author: author !== undefined ? (author?.trim() || null) : undefined,
+        publisher: publisher !== undefined ? (publisher?.trim() || null) : undefined,
+        isbn: isbn !== undefined ? (isbn?.trim() || null) : undefined,
+        description: description !== undefined ? (description?.trim() || null) : undefined,
+        coverUrl: coverUrl !== undefined ? (coverUrl?.trim() || null) : undefined,
+        displayOrder: displayOrder !== undefined ? Number(displayOrder) : undefined,
+        status: status || undefined,
+      },
+    });
+
+    // 2. Synchronize chapters and exercises if chapters are provided
+    if (chapters && Array.isArray(chapters)) {
+      const existingChapters = await prisma.chapter.findMany({
+        where: { bookId: id },
+        include: { exercises: true },
+      });
+
+      const existingChapterIds = new Set(existingChapters.map((c) => c.id));
+      const incomingChapterIds = new Set(chapters.filter((c: any) => c.id).map((c: any) => c.id));
+
+      // Handle removed chapters: if safe to delete (no homework assignments linked), delete; otherwise set status to INACTIVE
+      for (const exCh of existingChapters) {
+        if (!incomingChapterIds.has(exCh.id)) {
+          const hwCount = await prisma.homeworkAssignment.count({ where: { chapterId: exCh.id } });
+          if (hwCount === 0) {
+            await prisma.exercise.deleteMany({ where: { chapterId: exCh.id } });
+            await prisma.chapter.delete({ where: { id: exCh.id } });
+          } else {
+            await prisma.chapter.update({ where: { id: exCh.id }, data: { status: "INACTIVE" } });
+          }
+        }
+      }
+
+      // Upsert incoming chapters and exercises
+      for (let chIdx = 0; chIdx < chapters.length; chIdx++) {
+        const ch = chapters[chIdx];
+        if (!ch.name?.trim()) continue;
+        const chNum = Number(ch.chapterNumber) || chIdx + 1;
+
+        let chapterRecord;
+        if (ch.id && existingChapterIds.has(ch.id)) {
+          chapterRecord = await prisma.chapter.update({
+            where: { id: ch.id },
+            data: {
+              name: ch.name.trim(),
+              chapterNumber: chNum,
+              displayOrder: chNum,
+              description: ch.description || null,
+              status: "ACTIVE",
+            },
+          });
+        } else {
+          chapterRecord = await prisma.chapter.create({
+            data: {
+              bookId: id,
+              name: ch.name.trim(),
+              chapterNumber: chNum,
+              displayOrder: chNum,
+              description: ch.description || null,
+              status: "ACTIVE",
+            },
+          });
+        }
+
+        if (ch.exercises && Array.isArray(ch.exercises)) {
+          const existingExs = await prisma.exercise.findMany({
+            where: { chapterId: chapterRecord.id },
+          });
+          const existingExMap = new Map(existingExs.map((e) => [e.id, e]));
+          const incomingExIds = new Set(ch.exercises.filter((e: any) => e.id).map((e: any) => e.id));
+
+          // Handle removed exercises
+          for (const ex of existingExs) {
+            if (!incomingExIds.has(ex.id)) {
+              const exHwCount = await prisma.homeworkAssignment.count({ where: { exerciseId: ex.id } });
+              if (exHwCount === 0) {
+                await prisma.exercise.delete({ where: { id: ex.id } });
+              } else {
+                await prisma.exercise.update({ where: { id: ex.id }, data: { status: "INACTIVE" } });
+              }
+            }
+          }
+
+          // Upsert exercises
+          for (let exIdx = 0; exIdx < ch.exercises.length; exIdx++) {
+            const ex = ch.exercises[exIdx];
+            if (!ex.name?.trim()) continue;
+            const exNum = ex.exerciseNumber || `${chNum}.${exIdx + 1}`;
+            const qCount = Math.max(1, Number(ex.totalQuestions) || 10);
+
+            if (ex.id && existingExMap.has(ex.id)) {
+              await prisma.exercise.update({
+                where: { id: ex.id },
+                data: {
+                  name: ex.name.trim(),
+                  exerciseNumber: exNum,
+                  totalQuestions: qCount,
+                  displayOrder: exIdx + 1,
+                  status: "ACTIVE",
+                },
+              });
+            } else {
+              await prisma.exercise.create({
+                data: {
+                  chapterId: chapterRecord.id,
+                  name: ex.name.trim(),
+                  exerciseNumber: exNum,
+                  totalQuestions: qCount,
+                  displayOrder: exIdx + 1,
+                  status: "ACTIVE",
+                },
+              });
+            }
+          }
+        }
+      }
+    }
+
+    const fullBook = await prisma.book.findUnique({
+      where: { id },
+      include: {
+        subject: true,
+        chapters: {
+          include: { exercises: true },
+          orderBy: { chapterNumber: "asc" },
+        },
+      },
+    });
+
+    await logAuditEvent({
+      action: "UPDATE_BOOK",
+      entityType: "Book",
+      entityId: id,
+      metadata: { name: fullBook?.name, chaptersCount: fullBook?.chapters.length },
+    });
+
+    return NextResponse.json({ book: fullBook });
+  } catch (error) {
+    console.error("Error updating book:", error);
+    return NextResponse.json({ error: "Failed to update book" }, { status: 500 });
+  }
+}
+

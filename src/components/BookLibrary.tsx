@@ -18,6 +18,7 @@ import {
   PlusCircle,
   Check,
   Trash2,
+  Pencil,
 } from "lucide-react";
 
 interface BookLibraryProps {
@@ -78,6 +79,28 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
   const [isCreatingBook, setIsCreatingBook] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+
+  // Edit Existing Book modal state
+  const [editingBook, setEditingBook] = useState<any | null>(null);
+  const [editBookForm, setEditBookForm] = useState<any>({
+    id: "",
+    name: "",
+    subjectId: "",
+    curriculumType: "JEE",
+    bookType: "COMPETITIVE",
+    exam: "JEE",
+    branch: "Physical Chemistry",
+    classGrade: "Class 11 & 12",
+    author: "",
+    publisher: "",
+    edition: "",
+    language: "English",
+    description: "",
+    chapters: [],
+  });
+  const [isUpdatingBook, setIsUpdatingBook] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [updateSuccess, setUpdateSuccess] = useState<string | null>(null);
 
   const fetchBooks = async () => {
     setLoading(true);
@@ -367,6 +390,225 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
     }
   };
 
+  const handleOpenEditBook = (book: any) => {
+    const mappedChapters =
+      book.chapters && book.chapters.length > 0
+        ? book.chapters.map((ch: any, idx: number) => ({
+            id: ch.id,
+            name: ch.name || `Chapter ${idx + 1}`,
+            chapterNumber: ch.chapterNumber || idx + 1,
+            exercises:
+              ch.exercises && ch.exercises.length > 0
+                ? ch.exercises.map((ex: any, exIdx: number) => ({
+                    id: ex.id,
+                    name: ex.name || `Exercise ${ch.chapterNumber || idx + 1}.${exIdx + 1}`,
+                    exerciseNumber:
+                      ex.exerciseNumber || `${ch.chapterNumber || idx + 1}.${exIdx + 1}`,
+                    totalQuestions: Number(ex.totalQuestions) || 20,
+                  }))
+                : [
+                    {
+                      name: `Exercise ${ch.chapterNumber || idx + 1}.1`,
+                      exerciseNumber: `${ch.chapterNumber || idx + 1}.1`,
+                      totalQuestions: 20,
+                    },
+                  ],
+          }))
+        : [
+            {
+              name: "Chapter 1: Introduction & Fundamentals",
+              chapterNumber: 1,
+              exercises: [
+                {
+                  name: "Exercise 1.1: Practice Questions",
+                  exerciseNumber: "1.1",
+                  totalQuestions: 20,
+                },
+              ],
+            },
+          ];
+
+    setEditBookForm({
+      id: book.id,
+      name: book.name,
+      subjectId: book.subjectId || subjects[0]?.id || "",
+      curriculumType: book.curriculumType || "NCERT",
+      bookType: book.bookType || "NCERT",
+      exam: book.exam || "",
+      branch: book.branch || "",
+      classGrade: book.classGrade || "Class 11 & 12",
+      author: book.author || "",
+      publisher: book.publisher || "",
+      edition: book.edition || "2025–26 Edition",
+      language: book.language || "English",
+      description: book.description || "",
+      chapters: mappedChapters,
+    });
+    setEditingBook(book);
+    setUpdateError(null);
+    setUpdateSuccess(null);
+  };
+
+  const handleEditAddChapter = () => {
+    setEditBookForm((prev: any) => {
+      const nextNum = prev.chapters.length + 1;
+      return {
+        ...prev,
+        chapters: [
+          ...prev.chapters,
+          {
+            name: `Chapter ${nextNum}: Topic Name`,
+            chapterNumber: nextNum,
+            exercises: [
+              {
+                name: `Exercise ${nextNum}.1: Level 1 Questions`,
+                exerciseNumber: `${nextNum}.1`,
+                totalQuestions: 25,
+              },
+            ],
+          },
+        ],
+      };
+    });
+  };
+
+  const handleEditRemoveChapter = (chapterIdx: number) => {
+    setEditBookForm((prev: any) => ({
+      ...prev,
+      chapters: prev.chapters.filter((_: any, idx: number) => idx !== chapterIdx),
+    }));
+  };
+
+  const handleEditUpdateChapterName = (chapterIdx: number, name: string) => {
+    setEditBookForm((prev: any) => {
+      const chapters = [...prev.chapters];
+      chapters[chapterIdx] = { ...chapters[chapterIdx], name };
+      return { ...prev, chapters };
+    });
+  };
+
+  const handleEditAddExercise = (chapterIdx: number) => {
+    setEditBookForm((prev: any) => {
+      const chapters = [...prev.chapters];
+      const ch = chapters[chapterIdx];
+      const nextExIdx = ch.exercises.length + 1;
+      const chNum = ch.chapterNumber || chapterIdx + 1;
+      ch.exercises = [
+        ...ch.exercises,
+        {
+          name: `Exercise ${chNum}.${nextExIdx}`,
+          exerciseNumber: `${chNum}.${nextExIdx}`,
+          totalQuestions: 20,
+        },
+      ];
+      chapters[chapterIdx] = { ...ch };
+      return { ...prev, chapters };
+    });
+  };
+
+  const handleEditRemoveExercise = (chapterIdx: number, exerciseIdx: number) => {
+    setEditBookForm((prev: any) => {
+      const chapters = [...prev.chapters];
+      const ch = chapters[chapterIdx];
+      ch.exercises = ch.exercises.filter((_: any, idx: number) => idx !== exerciseIdx);
+      chapters[chapterIdx] = { ...ch };
+      return { ...prev, chapters };
+    });
+  };
+
+  const handleEditUpdateExercise = (
+    chapterIdx: number,
+    exerciseIdx: number,
+    field: "name" | "totalQuestions",
+    value: any
+  ) => {
+    setEditBookForm((prev: any) => {
+      const chapters = [...prev.chapters];
+      const ch = chapters[chapterIdx];
+      const exercises = [...ch.exercises];
+      exercises[exerciseIdx] = {
+        ...exercises[exerciseIdx],
+        [field]: field === "totalQuestions" ? Math.max(1, Number(value) || 1) : value,
+      };
+      ch.exercises = exercises;
+      chapters[chapterIdx] = { ...ch };
+      return { ...prev, chapters };
+    });
+  };
+
+  const handleSaveEditBook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editBookForm.name?.trim()) {
+      setUpdateError("Book title is required.");
+      return;
+    }
+
+    setIsUpdatingBook(true);
+    setUpdateError(null);
+    setUpdateSuccess(null);
+
+    try {
+      const formattedChapters = editBookForm.chapters
+        .filter((ch: any) => ch.name.trim().length > 0)
+        .map((ch: any, idx: number) => {
+          const chNum = idx + 1;
+          const validExercises = ch.exercises
+            .filter((ex: any) => ex.name.trim().length > 0)
+            .map((ex: any, exIdx: number) => ({
+              id: ex.id || undefined,
+              name: ex.name.trim(),
+              exerciseNumber: ex.exerciseNumber || `${chNum}.${exIdx + 1}`,
+              totalQuestions: Math.max(1, Number(ex.totalQuestions) || 10),
+            }));
+
+          return {
+            id: ch.id || undefined,
+            name: ch.name.trim(),
+            chapterNumber: chNum,
+            exercises: validExercises,
+          };
+        });
+
+      const res = await fetch("/api/books", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editBookForm.id,
+          subjectId: editBookForm.subjectId,
+          name: editBookForm.name.trim(),
+          curriculumType: editBookForm.curriculumType,
+          bookType: editBookForm.bookType,
+          exam: editBookForm.exam || null,
+          branch: editBookForm.branch || null,
+          classGrade: editBookForm.classGrade,
+          author: editBookForm.author?.trim() || null,
+          publisher: editBookForm.publisher?.trim() || null,
+          edition: editBookForm.edition?.trim() || "2025–26 Edition",
+          language: editBookForm.language?.trim() || "English",
+          description: editBookForm.description?.trim() || null,
+          chapters: formattedChapters,
+        }),
+      });
+
+      if (res.ok) {
+        setUpdateSuccess(`"${editBookForm.name}" updated successfully!`);
+        fetchBooks();
+        setTimeout(() => {
+          setEditingBook(null);
+          setUpdateSuccess(null);
+        }, 1200);
+      } else {
+        const data = await res.json();
+        setUpdateError(data.error || "Failed to update book");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setUpdateError(err.message || "Error updating book");
+    } finally {
+      setIsUpdatingBook(false);
+    }
+  };
+
   const handleOpenAssign = (book: any) => {
     setAssigningBook(book);
     setSelectedStudentIds([]);
@@ -624,14 +866,23 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
                   <button
                     onClick={() => setInspectBook(b)}
-                    className="flex-1 py-2 px-3 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors text-center"
+                    className="flex-1 py-2 px-2.5 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors text-center cursor-pointer"
                   >
                     View Chapters
                   </button>
 
                   <button
+                    onClick={() => handleOpenEditBook(b)}
+                    className="p-2 text-slate-500 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 border border-slate-200/80 rounded-xl transition-colors text-center flex items-center justify-center shrink-0 cursor-pointer"
+                    title="Edit Book Details & Exercises"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span className="sr-only">Edit Book</span>
+                  </button>
+
+                  <button
                     onClick={() => handleOpenAssign(b)}
-                    className="py-2 px-3 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-xs flex items-center gap-1.5"
+                    className="py-2 px-3 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
                   >
                     <UserCheck className="w-3.5 h-3.5" />
                     <span>Assign</span>
@@ -706,10 +957,22 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
               )}
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <button
+                onClick={() => {
+                  const b = inspectBook;
+                  setInspectBook(null);
+                  handleOpenEditBook(b);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors border border-indigo-200 cursor-pointer"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Edit Book & Chapters</span>
+              </button>
+
               <button
                 onClick={() => setInspectBook(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 cursor-pointer"
               >
                 Close
               </button>
@@ -1244,6 +1507,405 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
                     <>
                       <Plus className="w-4 h-4" />
                       <span>Save & Preload Book</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT EXISTING BOOK MODAL */}
+      {editingBook && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-5 bg-gradient-to-br from-indigo-50/70 to-slate-50 border-b border-slate-200 flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700">
+                    Edit Book & Curriculum Outlines
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-semibold">
+                    Master Content
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mt-1 line-clamp-1">
+                  Edit: {editBookForm.name || "Book"}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Update book classification, curriculum details, chapters, and question counts per exercise.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingBook(null)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <form onSubmit={handleSaveEditBook} className="flex-1 overflow-y-auto p-6 space-y-6">
+              {updateError && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-semibold text-rose-800 flex items-center gap-2">
+                  <X className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{updateError}</span>
+                </div>
+              )}
+
+              {updateSuccess && (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs font-semibold text-emerald-800 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{updateSuccess}</span>
+                </div>
+              )}
+
+              {/* Basic Information */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
+                  Book Details
+                </h4>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Book Title / Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editBookForm.name}
+                    onChange={(e) => setEditBookForm({ ...editBookForm, name: e.target.value })}
+                    className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {/* Subject Selection */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Subject *
+                    </label>
+                    <select
+                      value={editBookForm.subjectId}
+                      onChange={(e) => setEditBookForm({ ...editBookForm, subjectId: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                    >
+                      {subjects.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.classGrade || "All"})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Class Grade */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Class / Target Grade *
+                    </label>
+                    <select
+                      value={editBookForm.classGrade}
+                      onChange={(e) => setEditBookForm({ ...editBookForm, classGrade: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                    >
+                      <option value="Class 11 & 12">Class 11 & 12 (Target/Competitive)</option>
+                      {[4, 5, 6, 7, 8, 9, 10, 11, 12].map((c) => (
+                        <option key={c} value={`Class ${c}`}>
+                          Class {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  {/* Curriculum */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Curriculum
+                    </label>
+                    <select
+                      value={editBookForm.curriculumType}
+                      onChange={(e) => {
+                        const curr = e.target.value;
+                        setEditBookForm({
+                          ...editBookForm,
+                          curriculumType: curr,
+                          exam: curr === "JEE" || curr === "NEET" ? curr : editBookForm.exam,
+                        });
+                      }}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                    >
+                      <option value="JEE">JEE (Main & Advanced)</option>
+                      <option value="NEET">NEET (UG Medical)</option>
+                      <option value="NCERT">NCERT National Curriculum</option>
+                      <option value="CBSE">CBSE Board</option>
+                      <option value="ICSE">ICSE Board</option>
+                      <option value="OTHER">Other / Foundation</option>
+                    </select>
+                  </div>
+
+                  {/* Exam */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Exam Target
+                    </label>
+                    <select
+                      value={editBookForm.exam || ""}
+                      onChange={(e) => setEditBookForm({ ...editBookForm, exam: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                    >
+                      <option value="">None / General</option>
+                      <option value="JEE">JEE Main & Advanced</option>
+                      <option value="NEET">NEET Medical</option>
+                      <option value="CBSE">CBSE Board</option>
+                    </select>
+                  </div>
+
+                  {/* Branch */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Branch / Domain
+                    </label>
+                    <select
+                      value={editBookForm.branch || ""}
+                      onChange={(e) => setEditBookForm({ ...editBookForm, branch: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                    >
+                      <option value="">General / Core</option>
+                      <option value="Physical Chemistry">Physical Chemistry</option>
+                      <option value="Organic Chemistry">Organic Chemistry</option>
+                      <option value="Inorganic Chemistry">Inorganic Chemistry</option>
+                      <option value="Mechanics">Mechanics (Physics)</option>
+                      <option value="Electrodynamics">Electrodynamics (Physics)</option>
+                      <option value="Calculus">Calculus (Math)</option>
+                      <option value="Algebra">Algebra (Math)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Author</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Narendra Avasthi"
+                      value={editBookForm.author || ""}
+                      onChange={(e) => setEditBookForm({ ...editBookForm, author: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Publisher
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Shri Balaji Publications"
+                      value={editBookForm.publisher || ""}
+                      onChange={(e) => setEditBookForm({ ...editBookForm, publisher: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Edition</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 16th Edition (2025–26)"
+                      value={editBookForm.edition || ""}
+                      onChange={(e) => setEditBookForm({ ...editBookForm, edition: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Book Description / Syllabus Note
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Short description of this book's focus, difficulty level, or pedagogical approach..."
+                    value={editBookForm.description || ""}
+                    onChange={(e) => setEditBookForm({ ...editBookForm, description: e.target.value })}
+                    className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Chapters & Exercise Question Counts Outlines */}
+              <div className="space-y-3.5 pt-4 border-t border-slate-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                      Chapters & Exercise Question Counts
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Modify existing chapters or exercises, or add new ones with custom question counts.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                      {editBookForm.chapters.length} Ch •{" "}
+                      {editBookForm.chapters.reduce((sum: number, ch: any) => sum + (ch.exercises?.length || 0), 0)} Ex •{" "}
+                      {editBookForm.chapters.reduce(
+                        (sum: number, ch: any) =>
+                          sum +
+                          (ch.exercises || []).reduce(
+                            (s: number, ex: any) => s + (Number(ex.totalQuestions) || 0),
+                            0
+                          ),
+                        0
+                      )}{" "}
+                      Qs
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleEditAddChapter}
+                      className="flex items-center gap-1 px-3 py-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Chapter</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3.5 max-h-72 overflow-y-auto pr-1">
+                  {editBookForm.chapters.map((ch: any, chIdx: number) => (
+                    <div
+                      key={chIdx}
+                      className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3"
+                    >
+                      {/* Chapter Title Row */}
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0 text-[11px] shadow-xs">
+                          {chIdx + 1}
+                        </span>
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            placeholder={`Chapter ${chIdx + 1} Title`}
+                            value={ch.name}
+                            onChange={(e) => handleEditUpdateChapterName(chIdx, e.target.value)}
+                            className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-hidden focus:border-indigo-500"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleEditAddExercise(chIdx)}
+                          className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg transition-colors cursor-pointer shrink-0"
+                          title="Add an exercise with custom question count"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add Exercise</span>
+                        </button>
+                        {editBookForm.chapters.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleEditRemoveChapter(chIdx)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
+                            title="Remove Chapter"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Nested Exercises List with Individual Question Counts */}
+                      <div className="space-y-2 pl-2 sm:pl-8">
+                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          <span>Exercises in Chapter ({ch.exercises?.length || 0})</span>
+                          <span>
+                            {(ch.exercises || []).reduce(
+                              (sum: number, ex: any) => sum + (Number(ex.totalQuestions) || 0),
+                              0
+                            )}{" "}
+                            Total Chapter Qs
+                          </span>
+                        </div>
+
+                        {ch.exercises?.map((ex: any, exIdx: number) => (
+                          <div
+                            key={exIdx}
+                            className="flex items-center gap-2 p-2 bg-white border border-slate-200 rounded-xl shadow-2xs text-xs"
+                          >
+                            <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold text-[10px] shrink-0 border border-indigo-100">
+                              Ex {chIdx + 1}.{exIdx + 1}
+                            </span>
+                            <input
+                              type="text"
+                              placeholder={`Exercise Name (e.g. Level ${exIdx + 1})`}
+                              value={ex.name}
+                              onChange={(e) =>
+                                handleEditUpdateExercise(chIdx, exIdx, "name", e.target.value)
+                              }
+                              className="flex-1 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-hidden focus:border-indigo-500"
+                            />
+                            <div className="flex items-center gap-1.5 shrink-0 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200">
+                              <label className="text-[10px] font-bold text-slate-500">
+                                Questions:
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                max={500}
+                                value={ex.totalQuestions}
+                                onChange={(e) =>
+                                  handleEditUpdateExercise(
+                                    chIdx,
+                                    exIdx,
+                                    "totalQuestions",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-14 px-1.5 py-0.5 bg-white border border-indigo-300 rounded text-xs font-bold text-indigo-700 text-center outline-hidden focus:border-indigo-500"
+                              />
+                            </div>
+                            {ch.exercises.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleEditRemoveExercise(chIdx, exIdx)}
+                                className="p-1 text-slate-300 hover:text-rose-500 rounded-md transition-colors shrink-0 cursor-pointer"
+                                title="Delete this exercise"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Modal Footer Controls */}
+              <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setEditingBook(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingBook}
+                  className="flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl transition-all shadow-xs cursor-pointer"
+                >
+                  {isUpdatingBook ? (
+                    <span>Saving Changes...</span>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Save Changes</span>
                     </>
                   )}
                 </button>
