@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma db push --accept-data-loss && tsx prisma/seed.ts && tsx prisma/seedMasterBooks.ts && next build",
-    "postinstall": "prisma generate",
+    "build": "node scripts/build.js && next build",
+    "postinstall": "node scripts/postinstall.js",
     "start": "next start",
     "lint": "eslint"
   },
