@@ -65,7 +65,14 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
     language: "English",
     description: "",
     chapters: [
-      { name: "Chapter 1: Mole Concept & Stoichiometry", chapterNumber: 1, totalExercises: 2, questionsPerEx: 20 },
+      {
+        name: "Chapter 1: Mole Concept & Stoichiometry",
+        chapterNumber: 1,
+        exercises: [
+          { name: "Level 1: Objective & Conceptual MCQs", exerciseNumber: "1.1", totalQuestions: 30 },
+          { name: "Level 2: Advanced Problems & Numerical", exerciseNumber: "1.2", totalQuestions: 15 },
+        ],
+      },
     ],
   });
   const [isCreatingBook, setIsCreatingBook] = useState(false);
@@ -140,18 +147,85 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
         {
           name: `Chapter ${nextNum}: Topic Name`,
           chapterNumber: nextNum,
-          totalExercises: 2,
-          questionsPerEx: 20,
+          exercises: [
+            {
+              name: `Exercise ${nextNum}.1: Level 1 Questions`,
+              exerciseNumber: `${nextNum}.1`,
+              totalQuestions: 25,
+            },
+            {
+              name: `Exercise ${nextNum}.2: Advanced Problems`,
+              exerciseNumber: `${nextNum}.2`,
+              totalQuestions: 15,
+            },
+          ],
         },
       ],
     }));
   };
 
-  const handleRemoveChapterRow = (index: number) => {
+  const handleRemoveChapterRow = (chapterIdx: number) => {
     setNewBook((prev) => ({
       ...prev,
-      chapters: prev.chapters.filter((_, idx) => idx !== index),
+      chapters: prev.chapters.filter((_, idx) => idx !== chapterIdx),
     }));
+  };
+
+  const handleUpdateChapterName = (chapterIdx: number, name: string) => {
+    setNewBook((prev) => {
+      const chapters = [...prev.chapters];
+      chapters[chapterIdx] = { ...chapters[chapterIdx], name };
+      return { ...prev, chapters };
+    });
+  };
+
+  const handleAddExercise = (chapterIdx: number) => {
+    setNewBook((prev) => {
+      const chapters = [...prev.chapters];
+      const ch = chapters[chapterIdx];
+      const nextExIdx = ch.exercises.length + 1;
+      const chNum = ch.chapterNumber || chapterIdx + 1;
+      ch.exercises = [
+        ...ch.exercises,
+        {
+          name: `Exercise ${chNum}.${nextExIdx}`,
+          exerciseNumber: `${chNum}.${nextExIdx}`,
+          totalQuestions: 20,
+        },
+      ];
+      chapters[chapterIdx] = { ...ch };
+      return { ...prev, chapters };
+    });
+  };
+
+  const handleRemoveExercise = (chapterIdx: number, exerciseIdx: number) => {
+    setNewBook((prev) => {
+      const chapters = [...prev.chapters];
+      const ch = chapters[chapterIdx];
+      ch.exercises = ch.exercises.filter((_, idx) => idx !== exerciseIdx);
+      chapters[chapterIdx] = { ...ch };
+      return { ...prev, chapters };
+    });
+  };
+
+  const handleUpdateExercise = (
+    chapterIdx: number,
+    exerciseIdx: number,
+    field: "name" | "totalQuestions",
+    value: any
+  ) => {
+    setNewBook((prev) => {
+      const chapters = [...prev.chapters];
+      const ch = chapters[chapterIdx];
+      const exercises = [...ch.exercises];
+      exercises[exerciseIdx] = {
+        ...exercises[exerciseIdx],
+        [field]: field === "totalQuestions" ? Math.max(1, Number(value) || 1) : value,
+      };
+      ch.exercises = exercises;
+      chapters[chapterIdx] = { ...ch };
+      return { ...prev, chapters };
+    });
   };
 
   const handleCreateBook = async (e: React.FormEvent) => {
@@ -197,16 +271,27 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
         .filter((ch) => ch.name.trim().length > 0)
         .map((ch, idx) => {
           const chNum = idx + 1;
-          const exCount = Math.max(1, Number(ch.totalExercises) || 1);
-          const qCount = Math.max(1, Number(ch.questionsPerEx) || 10);
+          const validExercises = ch.exercises
+            .filter((ex) => ex.name.trim().length > 0)
+            .map((ex, exIdx) => ({
+              name: ex.name.trim(),
+              exerciseNumber: ex.exerciseNumber || `${chNum}.${exIdx + 1}`,
+              totalQuestions: Math.max(1, Number(ex.totalQuestions) || 10),
+            }));
+
           return {
             name: ch.name.trim(),
             chapterNumber: chNum,
-            exercises: Array.from({ length: exCount }, (_, exIdx) => ({
-              name: `Exercise ${chNum}.${exIdx + 1}`,
-              exerciseNumber: `${chNum}.${exIdx + 1}`,
-              totalQuestions: qCount,
-            })),
+            exercises:
+              validExercises.length > 0
+                ? validExercises
+                : [
+                    {
+                      name: `Exercise ${chNum}.1`,
+                      exerciseNumber: `${chNum}.1`,
+                      totalQuestions: 20,
+                    },
+                  ],
           };
         });
 
@@ -231,8 +316,12 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
       });
 
       if (res.ok) {
+        const totalExCount = formattedChapters.reduce(
+          (sum, ch) => sum + ch.exercises.length,
+          0
+        );
         setCreateSuccess(
-          `"${newBook.name}" created successfully with ${formattedChapters.length} chapter(s)!`
+          `"${newBook.name}" created successfully with ${formattedChapters.length} chapter(s) and ${totalExCount} exercises!`
         );
         fetchBooks();
         fetchSubjects();
@@ -255,7 +344,14 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
             language: "English",
             description: "",
             chapters: [
-              { name: "Chapter 1: Mole Concept & Stoichiometry", chapterNumber: 1, totalExercises: 2, questionsPerEx: 20 },
+              {
+                name: "Chapter 1: Mole Concept & Stoichiometry",
+                chapterNumber: 1,
+                exercises: [
+                  { name: "Level 1: Objective & Conceptual MCQs", exerciseNumber: "1.1", totalQuestions: 30 },
+                  { name: "Level 2: Advanced Problems & Numerical", exerciseNumber: "1.2", totalQuestions: 15 },
+                ],
+              },
             ],
           });
         }, 1200);
@@ -981,93 +1077,148 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
                 </div>
               </div>
 
-              {/* Initial Chapter Outlines */}
-              <div className="space-y-3 pt-3 border-t border-slate-200">
-                <div className="flex items-center justify-between">
+              {/* Initial Chapter Outlines with Individual Exercises & Question Counts */}
+              <div className="space-y-3.5 pt-4 border-t border-slate-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                       <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                      Chapters & Exercises Outline
+                      Chapters & Exercise-Wise Question Counts
                     </h4>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Pre-generate initial chapter modules and their exercise counts.
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Customize each exercise individually with its own specific question count.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleAddChapterRow}
-                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add Chapter</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                      {newBook.chapters.length} Ch •{" "}
+                      {newBook.chapters.reduce((sum, ch) => sum + ch.exercises.length, 0)} Ex •{" "}
+                      {newBook.chapters.reduce(
+                        (sum, ch) =>
+                          sum +
+                          ch.exercises.reduce(
+                            (s, ex) => s + (Number(ex.totalQuestions) || 0),
+                            0
+                          ),
+                        0
+                      )}{" "}
+                      Qs
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleAddChapterRow}
+                      className="flex items-center gap-1 px-3 py-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Chapter</span>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-2.5 max-h-52 overflow-y-auto pr-1">
-                  {newBook.chapters.map((ch, idx) => (
+                <div className="space-y-3.5 max-h-72 overflow-y-auto pr-1">
+                  {newBook.chapters.map((ch, chIdx) => (
                     <div
-                      key={idx}
-                      className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center gap-2.5 text-xs"
+                      key={chIdx}
+                      className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3"
                     >
-                      <span className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center shrink-0 text-[11px]">
-                        {idx + 1}
-                      </span>
-                      <div className="flex-1">
-                        <input
-                          type="text"
-                          placeholder="Chapter Title"
-                          value={ch.name}
-                          onChange={(e) => {
-                            const updated = [...newBook.chapters];
-                            updated[idx].name = e.target.value;
-                            setNewBook({ ...newBook, chapters: updated });
-                          }}
-                          className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-hidden focus:border-indigo-500"
-                        />
-                      </div>
-                      <div className="w-24 shrink-0">
-                        <label className="block text-[9px] text-slate-400 font-bold mb-0.5">
-                          Exercises
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={20}
-                          value={ch.totalExercises}
-                          onChange={(e) => {
-                            const updated = [...newBook.chapters];
-                            updated[idx].totalExercises = Number(e.target.value);
-                            setNewBook({ ...newBook, chapters: updated });
-                          }}
-                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-center outline-hidden focus:border-indigo-500"
-                        />
-                      </div>
-                      <div className="w-24 shrink-0">
-                        <label className="block text-[9px] text-slate-400 font-bold mb-0.5">
-                          Qs / Ex
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={150}
-                          value={ch.questionsPerEx}
-                          onChange={(e) => {
-                            const updated = [...newBook.chapters];
-                            updated[idx].questionsPerEx = Number(e.target.value);
-                            setNewBook({ ...newBook, chapters: updated });
-                          }}
-                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-center outline-hidden focus:border-indigo-500"
-                        />
-                      </div>
-                      {newBook.chapters.length > 1 && (
+                      {/* Chapter Title Row */}
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0 text-[11px] shadow-xs">
+                          {chIdx + 1}
+                        </span>
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            placeholder={`Chapter ${chIdx + 1} Title (e.g. Chemical Bonding)`}
+                            value={ch.name}
+                            onChange={(e) => handleUpdateChapterName(chIdx, e.target.value)}
+                            className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-hidden focus:border-indigo-500"
+                          />
+                        </div>
                         <button
                           type="button"
-                          onClick={() => handleRemoveChapterRow(idx)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
+                          onClick={() => handleAddExercise(chIdx)}
+                          className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg transition-colors cursor-pointer shrink-0"
+                          title="Add an exercise with custom question count"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add Exercise</span>
                         </button>
-                      )}
+                        {newBook.chapters.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveChapterRow(chIdx)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors shrink-0"
+                            title="Remove Chapter"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Nested Exercises List with Individual Question Counts */}
+                      <div className="space-y-2 pl-2 sm:pl-8">
+                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          <span>Exercises in Chapter ({ch.exercises.length})</span>
+                          <span>
+                            {ch.exercises.reduce(
+                              (sum, ex) => sum + (Number(ex.totalQuestions) || 0),
+                              0
+                            )}{" "}
+                            Total Chapter Qs
+                          </span>
+                        </div>
+
+                        {ch.exercises.map((ex, exIdx) => (
+                          <div
+                            key={exIdx}
+                            className="flex items-center gap-2 p-2 bg-white border border-slate-200 rounded-xl shadow-2xs text-xs"
+                          >
+                            <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold text-[10px] shrink-0 border border-indigo-100">
+                              Ex {chIdx + 1}.{exIdx + 1}
+                            </span>
+                            <input
+                              type="text"
+                              placeholder={`Exercise Name (e.g. Level ${exIdx + 1} or Practice Set ${exIdx + 1})`}
+                              value={ex.name}
+                              onChange={(e) =>
+                                handleUpdateExercise(chIdx, exIdx, "name", e.target.value)
+                              }
+                              className="flex-1 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-hidden focus:border-indigo-500"
+                            />
+                            <div className="flex items-center gap-1.5 shrink-0 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200">
+                              <label className="text-[10px] font-bold text-slate-500">
+                                Questions:
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                max={500}
+                                value={ex.totalQuestions}
+                                onChange={(e) =>
+                                  handleUpdateExercise(
+                                    chIdx,
+                                    exIdx,
+                                    "totalQuestions",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-14 px-1.5 py-0.5 bg-white border border-indigo-300 rounded text-xs font-bold text-indigo-700 text-center outline-hidden focus:border-indigo-500"
+                              />
+                            </div>
+                            {ch.exercises.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveExercise(chIdx, exIdx)}
+                                className="p-1 text-slate-300 hover:text-rose-500 rounded-md transition-colors shrink-0"
+                                title="Delete this exercise"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
