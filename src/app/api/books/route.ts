@@ -97,6 +97,7 @@ export async function POST(req: NextRequest) {
       branch,
       edition,
       language,
+      chapters,
     } = body;
 
     if (!subjectId || !name?.trim()) {
@@ -121,6 +122,45 @@ export async function POST(req: NextRequest) {
         coverUrl: coverUrl?.trim() || null,
         displayOrder: Number(displayOrder) || 1,
         status: "ACTIVE",
+        chapters:
+          chapters && Array.isArray(chapters) && chapters.length > 0
+            ? {
+                create: chapters
+                  .filter((c: any) => c.name && c.name.trim())
+                  .map((ch: any, idx: number) => ({
+                    name: ch.name.trim(),
+                    chapterNumber: Number(ch.chapterNumber) || idx + 1,
+                    displayOrder: Number(ch.chapterNumber) || idx + 1,
+                    description: ch.description || null,
+                    status: "ACTIVE",
+                    exercises:
+                      ch.exercises && Array.isArray(ch.exercises) && ch.exercises.length > 0
+                        ? {
+                            create: ch.exercises
+                              .filter((e: any) => e.name && e.name.trim())
+                              .map((ex: any, exIdx: number) => ({
+                                name: ex.name.trim(),
+                                exerciseNumber:
+                                  ex.exerciseNumber ||
+                                  `${Number(ch.chapterNumber) || idx + 1}.${exIdx + 1}`,
+                                totalQuestions: Number(ex.totalQuestions) || 10,
+                                questionRange: ex.questionRange || null,
+                                pageNumber: ex.pageNumber ? Number(ex.pageNumber) : null,
+                                status: "ACTIVE",
+                              })),
+                          }
+                        : undefined,
+                  })),
+              }
+            : undefined,
+      },
+      include: {
+        subject: true,
+        chapters: {
+          include: {
+            exercises: true,
+          },
+        },
       },
     });
 
@@ -128,7 +168,7 @@ export async function POST(req: NextRequest) {
       action: "CREATE_BOOK",
       entityType: "Book",
       entityId: book.id,
-      metadata: { name: book.name, subjectId, exam, branch, curriculumType },
+      metadata: { name: book.name, subjectId, exam, branch, curriculumType, chaptersCount: chapters?.length || 0 },
     });
 
     return NextResponse.json({ book }, { status: 201 });

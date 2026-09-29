@@ -14,6 +14,10 @@ import {
   CheckCircle2,
   Atom,
   X,
+  Plus,
+  PlusCircle,
+  Check,
+  Trash2,
 } from "lucide-react";
 
 interface BookLibraryProps {
@@ -24,6 +28,7 @@ interface BookLibraryProps {
 export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
   const [books, setBooks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [subjects, setSubjects] = useState<any[]>([]);
 
   // Filters
   const [curriculumFilter, setCurriculumFilter] = useState<string>("ALL");
@@ -41,6 +46,31 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [isAssigning, setIsAssigning] = useState(false);
   const [assignSuccess, setAssignSuccess] = useState<string | null>(null);
+
+  // Add New Book modal state
+  const [isAddBookModalOpen, setIsAddBookModalOpen] = useState(false);
+  const [newBook, setNewBook] = useState({
+    name: "",
+    subjectId: "",
+    createNewSubject: false,
+    newSubjectName: "",
+    curriculumType: "JEE",
+    bookType: "COMPETITIVE",
+    exam: "JEE",
+    branch: "Physical Chemistry",
+    classGrade: "Class 11 & 12",
+    author: "",
+    publisher: "",
+    edition: "2025–26 Edition",
+    language: "English",
+    description: "",
+    chapters: [
+      { name: "Chapter 1: Mole Concept & Stoichiometry", chapterNumber: 1, totalExercises: 2, questionsPerEx: 20 },
+    ],
+  });
+  const [isCreatingBook, setIsCreatingBook] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
 
   const fetchBooks = async () => {
     setLoading(true);
@@ -76,13 +106,170 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
     }
   };
 
+  const fetchSubjects = async () => {
+    try {
+      const res = await fetch("/api/subjects");
+      if (res.ok) {
+        const data = await res.json();
+        const subs = data.subjects || [];
+        setSubjects(subs);
+        if (subs.length > 0 && !newBook.subjectId) {
+          setNewBook((prev) => ({ ...prev, subjectId: subs[0].id }));
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchBooks();
   }, [curriculumFilter, classFilter, examFilter, branchFilter, searchQuery]);
 
   useEffect(() => {
     fetchStudents();
+    fetchSubjects();
   }, []);
+
+  const handleAddChapterRow = () => {
+    const nextNum = newBook.chapters.length + 1;
+    setNewBook((prev) => ({
+      ...prev,
+      chapters: [
+        ...prev.chapters,
+        {
+          name: `Chapter ${nextNum}: Topic Name`,
+          chapterNumber: nextNum,
+          totalExercises: 2,
+          questionsPerEx: 20,
+        },
+      ],
+    }));
+  };
+
+  const handleRemoveChapterRow = (index: number) => {
+    setNewBook((prev) => ({
+      ...prev,
+      chapters: prev.chapters.filter((_, idx) => idx !== index),
+    }));
+  };
+
+  const handleCreateBook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBook.name.trim()) {
+      setCreateError("Book title is required.");
+      return;
+    }
+
+    setIsCreatingBook(true);
+    setCreateError(null);
+    setCreateSuccess(null);
+
+    try {
+      let finalSubjectId = newBook.subjectId;
+
+      if (newBook.createNewSubject || !finalSubjectId) {
+        const subName = (newBook.newSubjectName || (newBook.createNewSubject ? "" : "General")).trim();
+        if (!subName) {
+          setCreateError("Please select or enter a subject name.");
+          setIsCreatingBook(false);
+          return;
+        }
+
+        const subRes = await fetch("/api/subjects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: subName,
+            classGrade: newBook.classGrade,
+            color: "#4F46E5",
+          }),
+        });
+        if (!subRes.ok) {
+          const err = await subRes.json();
+          throw new Error(err.error || "Failed to create subject");
+        }
+        const subData = await subRes.json();
+        finalSubjectId = subData.subject.id;
+      }
+
+      const formattedChapters = newBook.chapters
+        .filter((ch) => ch.name.trim().length > 0)
+        .map((ch, idx) => {
+          const chNum = idx + 1;
+          const exCount = Math.max(1, Number(ch.totalExercises) || 1);
+          const qCount = Math.max(1, Number(ch.questionsPerEx) || 10);
+          return {
+            name: ch.name.trim(),
+            chapterNumber: chNum,
+            exercises: Array.from({ length: exCount }, (_, exIdx) => ({
+              name: `Exercise ${chNum}.${exIdx + 1}`,
+              exerciseNumber: `${chNum}.${exIdx + 1}`,
+              totalQuestions: qCount,
+            })),
+          };
+        });
+
+      const res = await fetch("/api/books", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subjectId: finalSubjectId,
+          name: newBook.name.trim(),
+          curriculumType: newBook.curriculumType,
+          bookType: newBook.bookType,
+          exam: newBook.exam || null,
+          branch: newBook.branch || null,
+          classGrade: newBook.classGrade,
+          author: newBook.author.trim() || null,
+          publisher: newBook.publisher.trim() || null,
+          edition: newBook.edition.trim() || "2025–26 Edition",
+          language: newBook.language.trim() || "English",
+          description: newBook.description.trim() || null,
+          chapters: formattedChapters,
+        }),
+      });
+
+      if (res.ok) {
+        setCreateSuccess(
+          `"${newBook.name}" created successfully with ${formattedChapters.length} chapter(s)!`
+        );
+        fetchBooks();
+        fetchSubjects();
+        setTimeout(() => {
+          setIsAddBookModalOpen(false);
+          setCreateSuccess(null);
+          setNewBook({
+            name: "",
+            subjectId: subjects[0]?.id || "",
+            createNewSubject: false,
+            newSubjectName: "",
+            curriculumType: "JEE",
+            bookType: "COMPETITIVE",
+            exam: "JEE",
+            branch: "Physical Chemistry",
+            classGrade: "Class 11 & 12",
+            author: "",
+            publisher: "",
+            edition: "2025–26 Edition",
+            language: "English",
+            description: "",
+            chapters: [
+              { name: "Chapter 1: Mole Concept & Stoichiometry", chapterNumber: 1, totalExercises: 2, questionsPerEx: 20 },
+            ],
+          });
+        }, 1200);
+      } else {
+        const data = await res.json();
+        setCreateError(data.error || "Failed to create book");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setCreateError(err.message || "Error creating book");
+    } finally {
+      setIsCreatingBook(false);
+    }
+  };
 
   const handleOpenAssign = (book: any) => {
     setAssigningBook(book);
@@ -142,33 +329,43 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
           </p>
         </div>
 
-        {/* Quick Curriculum Switcher Tabs */}
-        <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl shrink-0">
-          {[
-            { id: "ALL", label: "All Library" },
-            { id: "NCERT", label: "NCERT (4–12)" },
-            { id: "JEE", label: "JEE Main & Adv" },
-            { id: "NEET", label: "NEET Medical" },
-          ].map((c) => (
-            <button
-              key={c.id}
-              onClick={() => {
-                setCurriculumFilter(c.id);
-                if (c.id === "JEE" || c.id === "NEET") {
-                  setExamFilter(c.id);
-                } else if (c.id === "NCERT") {
-                  setExamFilter("ALL");
-                }
-              }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-                curriculumFilter === c.id
-                  ? "bg-white text-indigo-700 shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              {c.label}
-            </button>
-          ))}
+        {/* Quick Curriculum Switcher Tabs + Add Book Button */}
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl">
+            {[
+              { id: "ALL", label: "All Library" },
+              { id: "NCERT", label: "NCERT (4–12)" },
+              { id: "JEE", label: "JEE Main & Adv" },
+              { id: "NEET", label: "NEET Medical" },
+            ].map((c) => (
+              <button
+                key={c.id}
+                onClick={() => {
+                  setCurriculumFilter(c.id);
+                  if (c.id === "JEE" || c.id === "NEET") {
+                    setExamFilter(c.id);
+                  } else if (c.id === "NCERT") {
+                    setExamFilter("ALL");
+                  }
+                }}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                  curriculumFilter === c.id
+                    ? "bg-white text-indigo-700 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setIsAddBookModalOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white font-bold text-xs shadow-xs transition-all shrink-0 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add New Book</span>
+          </button>
         </div>
       </div>
 
@@ -242,10 +439,17 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
           Loading Master Book Library...
         </div>
       ) : books.length === 0 ? (
-        <div className="py-16 text-center bg-white rounded-3xl border border-slate-200 p-8 space-y-2">
+        <div className="py-16 text-center bg-white rounded-3xl border border-slate-200 p-8 space-y-3">
           <BookOpen className="w-10 h-10 text-slate-300 mx-auto" />
           <h3 className="text-sm font-bold text-slate-800">No books found</h3>
-          <p className="text-xs text-slate-500">Try adjusting your filters or search query.</p>
+          <p className="text-xs text-slate-500">Try adjusting your filters or add a new book to the library.</p>
+          <button
+            onClick={() => setIsAddBookModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add New Book</span>
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -526,6 +730,374 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
                 {isAssigning ? "Assigning..." : `Assign to ${selectedStudentIds.length} Student(s)`}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD NEW BOOK MODAL */}
+      {isAddBookModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-5 bg-gradient-to-br from-indigo-50 to-slate-50 border-b border-slate-200 flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700">
+                    Master Content Catalog
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-semibold">
+                    Preloaded Curriculum
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mt-1">
+                  Add New Book to Library
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Register a textbook or competitive book with curriculum classification and optional chapter outlines.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddBookModalOpen(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <form onSubmit={handleCreateBook} className="flex-1 overflow-y-auto p-6 space-y-6">
+              {createError && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-semibold text-rose-800 flex items-center gap-2">
+                  <X className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{createError}</span>
+                </div>
+              )}
+
+              {createSuccess && (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs font-semibold text-emerald-800 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{createSuccess}</span>
+                </div>
+              )}
+
+              {/* Basic Information */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
+                  Book Details
+                </h4>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Book Title / Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Problems in Physical Chemistry for JEE (Main & Advanced)"
+                    value={newBook.name}
+                    onChange={(e) => setNewBook({ ...newBook, name: e.target.value })}
+                    className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {/* Subject Selection / Creation */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-bold text-slate-700">Subject *</label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setNewBook({ ...newBook, createNewSubject: !newBook.createNewSubject })
+                        }
+                        className="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold"
+                      >
+                        {newBook.createNewSubject ? "Select Existing" : "+ New Subject"}
+                      </button>
+                    </div>
+                    {newBook.createNewSubject ? (
+                      <input
+                        type="text"
+                        placeholder="Enter new subject name..."
+                        value={newBook.newSubjectName}
+                        onChange={(e) =>
+                          setNewBook({ ...newBook, newSubjectName: e.target.value })
+                        }
+                        className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-indigo-300 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                      />
+                    ) : (
+                      <select
+                        value={newBook.subjectId}
+                        onChange={(e) => setNewBook({ ...newBook, subjectId: e.target.value })}
+                        className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                      >
+                        {subjects.length === 0 && <option value="">No subjects yet</option>}
+                        {subjects.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.classGrade || "All"})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {/* Class Grade */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Class / Target Grade *
+                    </label>
+                    <select
+                      value={newBook.classGrade}
+                      onChange={(e) => setNewBook({ ...newBook, classGrade: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                    >
+                      <option value="Class 11 & 12">Class 11 & 12 (Target/Competitive)</option>
+                      {[4, 5, 6, 7, 8, 9, 10, 11, 12].map((c) => (
+                        <option key={c} value={`Class ${c}`}>
+                          Class {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  {/* Curriculum */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Curriculum
+                    </label>
+                    <select
+                      value={newBook.curriculumType}
+                      onChange={(e) => {
+                        const curr = e.target.value;
+                        setNewBook({
+                          ...newBook,
+                          curriculumType: curr,
+                          exam: curr === "JEE" || curr === "NEET" ? curr : "ALL",
+                          bookType: curr === "NCERT" ? "TEXTBOOK" : "COMPETITIVE",
+                        });
+                      }}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                    >
+                      <option value="JEE">JEE (Main & Advanced)</option>
+                      <option value="NEET">NEET (UG Medical)</option>
+                      <option value="NCERT">NCERT National Curriculum</option>
+                      <option value="CBSE">CBSE Board</option>
+                      <option value="ICSE">ICSE Board</option>
+                      <option value="OTHER">Other / Foundation</option>
+                    </select>
+                  </div>
+
+                  {/* Exam */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Exam Target
+                    </label>
+                    <select
+                      value={newBook.exam}
+                      onChange={(e) => setNewBook({ ...newBook, exam: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                    >
+                      <option value="">None / General</option>
+                      <option value="JEE">JEE Main & Advanced</option>
+                      <option value="NEET">NEET Medical</option>
+                      <option value="CBSE">CBSE Board</option>
+                    </select>
+                  </div>
+
+                  {/* Branch */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Branch / Domain
+                    </label>
+                    <select
+                      value={newBook.branch}
+                      onChange={(e) => setNewBook({ ...newBook, branch: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                    >
+                      <option value="">General / Core</option>
+                      <option value="Physical Chemistry">Physical Chemistry</option>
+                      <option value="Organic Chemistry">Organic Chemistry</option>
+                      <option value="Inorganic Chemistry">Inorganic Chemistry</option>
+                      <option value="Mechanics">Mechanics (Physics)</option>
+                      <option value="Electrodynamics">Electrodynamics (Physics)</option>
+                      <option value="Calculus">Calculus (Math)</option>
+                      <option value="Algebra">Algebra (Math)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Author</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Narendra Avasthi"
+                      value={newBook.author}
+                      onChange={(e) => setNewBook({ ...newBook, author: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Publisher
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Shri Balaji Publications"
+                      value={newBook.publisher}
+                      onChange={(e) => setNewBook({ ...newBook, publisher: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Edition</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 16th Edition (2025–26)"
+                      value={newBook.edition}
+                      onChange={(e) => setNewBook({ ...newBook, edition: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Book Description / Syllabus Note
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Short description of this book's focus, difficulty level, or pedagogical approach..."
+                    value={newBook.description}
+                    onChange={(e) => setNewBook({ ...newBook, description: e.target.value })}
+                    className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Initial Chapter Outlines */}
+              <div className="space-y-3 pt-3 border-t border-slate-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                      Chapters & Exercises Outline
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Pre-generate initial chapter modules and their exercise counts.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddChapterRow}
+                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Chapter</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2.5 max-h-52 overflow-y-auto pr-1">
+                  {newBook.chapters.map((ch, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center gap-2.5 text-xs"
+                    >
+                      <span className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center shrink-0 text-[11px]">
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          placeholder="Chapter Title"
+                          value={ch.name}
+                          onChange={(e) => {
+                            const updated = [...newBook.chapters];
+                            updated[idx].name = e.target.value;
+                            setNewBook({ ...newBook, chapters: updated });
+                          }}
+                          className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-hidden focus:border-indigo-500"
+                        />
+                      </div>
+                      <div className="w-24 shrink-0">
+                        <label className="block text-[9px] text-slate-400 font-bold mb-0.5">
+                          Exercises
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={ch.totalExercises}
+                          onChange={(e) => {
+                            const updated = [...newBook.chapters];
+                            updated[idx].totalExercises = Number(e.target.value);
+                            setNewBook({ ...newBook, chapters: updated });
+                          }}
+                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-center outline-hidden focus:border-indigo-500"
+                        />
+                      </div>
+                      <div className="w-24 shrink-0">
+                        <label className="block text-[9px] text-slate-400 font-bold mb-0.5">
+                          Qs / Ex
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={150}
+                          value={ch.questionsPerEx}
+                          onChange={(e) => {
+                            const updated = [...newBook.chapters];
+                            updated[idx].questionsPerEx = Number(e.target.value);
+                            setNewBook({ ...newBook, chapters: updated });
+                          }}
+                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-center outline-hidden focus:border-indigo-500"
+                        />
+                      </div>
+                      {newBook.chapters.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveChapterRow(idx)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Modal Footer Controls */}
+              <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsAddBookModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingBook}
+                  className="flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl transition-all shadow-xs cursor-pointer"
+                >
+                  {isCreatingBook ? (
+                    <span>Creating Book...</span>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4" />
+                      <span>Save & Preload Book</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
