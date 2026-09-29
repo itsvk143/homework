@@ -1,0 +1,268 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  password     String
+  name         String
+  role         String   @default("STUDENT") // ADMIN, TEACHER, STUDENT
+  avatarUrl    String?
+  status       String   @default("ACTIVE") // ACTIVE, INACTIVE, ARCHIVED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  studentProfile StudentProfile?
+  teacherProfile TeacherProfile?
+
+  assignedBooksAsStudent StudentBook[]        @relation("StudentBookStudent")
+  assignedBooksAsTeacher StudentBook[]        @relation("StudentBookTeacher")
+  
+  studentAssignments     HomeworkAssignment[] @relation("StudentHomework")
+  teacherAssignments     HomeworkAssignment[] @relation("TeacherHomework")
+  
+  progressHistory        HomeworkProgressHistory[]
+  notifications          Notification[]
+  auditLogs              AuditLog[]
+}
+
+model StudentProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classGrade   String   @default("Class 8")
+  section      String   @default("A")
+  rollNo       String?
+  schoolName   String   @default("Delhi Public School")
+  parentName   String?
+  parentPhone  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model TeacherProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjectSpecialty String   @default("Mathematics & Science")
+  phone            String?
+  bio              String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Subject {
+  id          String   @id @default(cuid())
+  name        String
+  classGrade  String   @default("Class 8")
+  code        String?
+  description String?
+  color       String   @default("#4F46E5")
+  icon        String   @default("book-open")
+  status      String   @default("ACTIVE") // ACTIVE, INACTIVE, ARCHIVED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  books       Book[]
+  homeworks   HomeworkAssignment[]
+}
+
+model Book {
+  id             String   @id @default(cuid())
+  subjectId      String
+  subject        Subject  @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  bookCode       String?  @unique // Idempotent key, e.g. NCERT_CLASS_10_MATHEMATICS
+  curriculumType String   @default("NCERT") // NCERT, JEE, NEET, CBSE, ICSE, OTHER
+  bookType       String   @default("NCERT") // NCERT, REFERENCE, COMPETITIVE, SCHOOL, OTHER
+  exam           String?  // JEE, NEET, etc.
+  branch         String?  // Physical Chemistry, Organic Chemistry, Inorganic Chemistry, etc.
+  edition        String?  @default("2025-26 Edition")
+  language       String?  @default("English")
+  name           String
+  classGrade     String   @default("Class 8")
+  author         String?
+  publisher      String?
+  isbn           String?
+  description    String?
+  coverUrl       String?
+  displayOrder   Int      @default(1)
+  status         String   @default("ACTIVE") // ACTIVE, INACTIVE, ARCHIVED
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  chapters     Chapter[]
+  studentBooks StudentBook[]
+  homeworks    HomeworkAssignment[]
+}
+
+model Chapter {
+  id            String   @id @default(cuid())
+  bookId        String
+  book          Book     @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  name          String
+  chapterNumber Int      @default(1)
+  description   String?
+  displayOrder  Int      @default(1)
+  status        String   @default("ACTIVE") // ACTIVE, INACTIVE, ARCHIVED
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  exercises     Exercise[]
+  homeworks     HomeworkAssignment[]
+}
+
+model Exercise {
+  id            String   @id @default(cuid())
+  chapterId     String
+  chapter       Chapter  @relation(fields: [chapterId], references: [id], onDelete: Restrict)
+  name          String
+  exerciseNumber String
+  totalQuestions Int     @default(10)
+  pageNumber    Int?
+  questionRange String?  // e.g. "1-20"
+  estimatedTime Int?     // in minutes
+  teacherNotes  String?
+  displayOrder  Int      @default(1)
+  status        String   @default("ACTIVE") // ACTIVE, INACTIVE, ARCHIVED
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  homeworks       HomeworkAssignment[]
+  progressHistory HomeworkProgressHistory[]
+}
+
+model StudentBook {
+  id                  String   @id @default(cuid())
+  studentId           String
+  student             User     @relation("StudentBookStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  bookId              String
+  book                Book     @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  assignedByTeacherId String
+  assignedBy          User     @relation("StudentBookTeacher", fields: [assignedByTeacherId], references: [id], onDelete: Restrict)
+  assignedDate        DateTime @default(now())
+
+  @@unique([studentId, bookId])
+}
+
+model HomeworkAssignment {
+  id                 String   @id @default(cuid())
+  studentId          String
+  student            User     @relation("StudentHomework", fields: [studentId], references: [id], onDelete: Cascade)
+  teacherId          String
+  teacher            User     @relation("TeacherHomework", fields: [teacherId], references: [id], onDelete: Restrict)
+  subjectId          String
+  subject            Subject  @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  bookId             String
+  book               Book     @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  chapterId          String
+  chapter            Chapter  @relation(fields: [chapterId], references: [id], onDelete: Restrict)
+  exerciseId         String
+  exercise           Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  assignedDate       DateTime @default(now())
+  dueDate            DateTime
+  instructions       String?
+
+  totalQuestions     Int      @default(10)
+  questionsCompleted Int      @default(0)
+  progressPercentage Float    @default(0.0)
+
+  // Exercise Progress: NOT_STARTED, IN_PROGRESS, COMPLETED
+  exerciseStatus     String   @default("NOT_STARTED")
+
+  // Homework Status: ASSIGNED, IN_PROGRESS, SUBMITTED, AWAITING_REVIEW, REJECTED, REVIEWED, COMPLETED, OVERDUE
+  homeworkStatus     String   @default("ASSIGNED")
+
+  startedAt          DateTime?
+  submittedAt        DateTime?
+  completedAt        DateTime?
+  lastProgressUpdate DateTime?
+  teacherComment     String?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  progressHistory    HomeworkProgressHistory[]
+  submissions        HomeworkSubmission[]
+  attachments        HomeworkAttachment[]
+}
+
+model HomeworkProgressHistory {
+  id                   String             @id @default(cuid())
+  homeworkAssignmentId String
+  homeworkAssignment   HomeworkAssignment @relation(fields: [homeworkAssignmentId], references: [id], onDelete: Cascade)
+  studentId            String
+  student              User               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  exerciseId           String
+  exercise             Exercise           @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  questionsCompleted   Int
+  totalQuestions       Int
+  questionsRemaining   Int
+  progressPercentage   Float
+  deltaQuestions       Int                @default(0)
+  status               String
+  notes                String?
+  createdAt            DateTime           @default(now())
+}
+
+model HomeworkSubmission {
+  id                   String             @id @default(cuid())
+  homeworkAssignmentId String
+  homeworkAssignment   HomeworkAssignment @relation(fields: [homeworkAssignmentId], references: [id], onDelete: Cascade)
+  studentNotes         String?
+  submittedAt          DateTime           @default(now())
+  status               String             @default("SUBMITTED") // SUBMITTED, VERIFIED, RETURNED
+  teacherFeedback      String?
+  reviewedAt           DateTime?
+
+  attachments          HomeworkAttachment[]
+}
+
+model HomeworkAttachment {
+  id                   String              @id @default(cuid())
+  homeworkAssignmentId String
+  homeworkAssignment   HomeworkAssignment  @relation(fields: [homeworkAssignmentId], references: [id], onDelete: Cascade)
+  submissionId         String?
+  submission           HomeworkSubmission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  fileName             String
+  fileType             String              @default("IMAGE") // IMAGE, PDF
+  fileUrl              String
+  fileSize             Int                 @default(0)
+  uploadedAt           DateTime            @default(now())
+}
+
+model SystemSetting {
+  id                           String   @id @default("default")
+  requireTeacherVerification   Boolean  @default(true)
+  sequentialExerciseCompletion Boolean  @default(false)
+  updatedAt                    DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("INFO") // HOMEWORK_ASSIGNED, DUE_SOON, OVERDUE, COMMENT_ADDED, RETURNED, VERIFIED, PROGRESS_UPDATE
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String?
+  metadata   String?  // JSON string
+  timestamp  DateTime @default(now())
+}
