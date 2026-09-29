@@ -1,0 +1,90 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { logAuditEvent } from "@/lib/audit";
+
+export async function POST(req: NextRequest) {
+  try {
+    const { email, password } = await req.json();
+
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: "Email and password are required" },
+        { status: 400 }
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase().trim() },
+      include: {
+        studentProfile: true,
+        teacherProfile: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Invalid email or password" },
+        { status: 401 }
+      );
+    }
+
+    // Password verification (compatible with seed plaintext or hashed)
+    if (user.password && user.password !== password) {
+      return NextResponse.json(
+        { error: "Invalid email or password" },
+        { status: 401 }
+      );
+    }
+
+    if (user.status !== "ACTIVE") {
+      return NextResponse.json(
+        { error: "Account is not active. Please contact administrator." },
+        { status: 403 }
+      );
+    }
+
+    await logAuditEvent({
+      action: "PASSWORD_LOGIN",
+      entityType: "User",
+      entityId: user.id,
+      metadata: { email: user.email, role: user.role },
+    });
+
+    const redirectUrl =
+      user.role === "TEACHER"
+        ? "/teacher/dashboard"
+        : user.role === "ADMIN"
+        ? "/admin/dashboard"
+        : "/student/dashboard";
+
+    const response = NextResponse.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        studentProfile: user.studentProfile,
+        teacherProfile: user.teacherProfile,
+      },
+      redirectUrl,
+    });
+
+    response.cookies.set("cb_user_id", user.id, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      httpOnly: false,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+
+    return response;
+  } catch (error) {
+    console.error("Error in /api/auth/login:", error);
+    return NextResponse.json(
+      { error: "Unable to process login. Please try again." },
+      { status: 500 }
+    );
+  }
+}

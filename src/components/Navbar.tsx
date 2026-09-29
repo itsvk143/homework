@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   GraduationCap,
   Bell,
@@ -13,6 +14,8 @@ import {
   UserCheck,
   Settings,
   X,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 
 interface User {
@@ -333,6 +336,28 @@ export function Navbar({
                       </button>
                     );
                   })}
+                </div>
+
+                <div className="pt-2 mt-1 border-t border-slate-100 px-2 space-y-1">
+                  <Link
+                    href="/login"
+                    onClick={() => setShowUserDropdown(false)}
+                    className="flex items-center gap-2 px-2.5 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 rounded-xl transition-colors"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    <span>Sign in with Google / Email</span>
+                  </Link>
+
+                  <button
+                    onClick={async () => {
+                      await fetch("/api/auth/logout", { method: "POST" });
+                      window.location.href = "/login";
+                    }}
+                    className="w-full flex items-center gap-2 px-2.5 py-2 text-xs font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out</span>
+                  </button>
                 </div>
               </div>
             )}
