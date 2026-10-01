@@ -17,11 +17,45 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [gisLoaded, setGisLoaded] = useState(false);
 
   const googleBtnRef = useRef<HTMLDivElement>(null);
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+
+  // 1. Check existing session on mount - if logged in and not explicitly logged out, auto-redirect immediately!
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("logged_out") === "true") {
+      setCheckingSession(false);
+      return;
+    }
+
+    const storedId = typeof window !== "undefined" ? localStorage.getItem("cb_user_id") : null;
+    const storedEmail = typeof window !== "undefined" ? localStorage.getItem("cb_user_email") : null;
+    const headers: Record<string, string> = {};
+    if (storedId) headers["x-user-id"] = storedId;
+    if (storedEmail) headers["x-user-email"] = storedEmail;
+
+    fetch("/api/auth/me", {
+      cache: "no-store",
+      headers,
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.user) {
+          if (data.user.id) localStorage.setItem("cb_user_id", data.user.id);
+          if (data.user.email) localStorage.setItem("cb_user_email", data.user.email);
+          window.location.href = "/";
+        } else {
+          setCheckingSession(false);
+        }
+      })
+      .catch(() => {
+        setCheckingSession(false);
+      });
+  }, []);
 
   const handleGoogleCredentialResponse = async (response: any) => {
     if (!response || !response.credential) {
@@ -42,7 +76,9 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        // Successful Google login
+        // Remember in localStorage for resilience
+        if (data.user?.id) localStorage.setItem("cb_user_id", data.user.id);
+        if (data.user?.email) localStorage.setItem("cb_user_email", data.user.email);
         window.location.href = data.redirectUrl || "/";
       } else {
         setError(data.error || "Google authentication could not be verified. Please try again.");
@@ -111,6 +147,9 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
+        // Remember in localStorage for resilience
+        if (data.user?.id) localStorage.setItem("cb_user_id", data.user.id);
+        if (data.user?.email) localStorage.setItem("cb_user_email", data.user.email);
         window.location.href = data.redirectUrl || "/";
       } else {
         setError(data.error || "Invalid email or password.");
@@ -121,6 +160,19 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+        <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/25 animate-pulse mb-3">
+          <GraduationCap className="w-7 h-7" />
+        </div>
+        <p className="text-xs font-semibold text-slate-600 tracking-wide animate-pulse">
+          Restoring your session...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <>

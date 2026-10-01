@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logAuditEvent } from "@/lib/audit";
-import { isAdminEmail } from "@/lib/auth";
+import { isAdminEmail, SESSION_COOKIE_OPTIONS } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -83,13 +83,8 @@ export async function POST(req: NextRequest) {
       redirectUrl,
     });
 
-    response.cookies.set("cb_user_id", user.id, {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 30, // 30 days
-      httpOnly: false,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-    });
+    response.cookies.set("cb_user_id", user.id, SESSION_COOKIE_OPTIONS);
+    response.cookies.set("cb_user_email", user.email, SESSION_COOKIE_OPTIONS);
 
     return response;
   } catch (error) {

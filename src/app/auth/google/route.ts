@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { OAuth2Client } from "google-auth-library";
 import { prisma } from "@/lib/prisma";
 import { logAuditEvent } from "@/lib/audit";
-import { isAdminEmail } from "@/lib/auth";
+import { isAdminEmail, SESSION_COOKIE_OPTIONS } from "@/lib/auth";
 
 // In-memory rate limiting map: ip -> { count, resetAt }
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -290,13 +290,8 @@ export async function POST(req: NextRequest) {
       redirectUrl,
     });
 
-    response.cookies.set("cb_user_id", user.id, {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 30, // 30 days
-      httpOnly: false,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-    });
+    response.cookies.set("cb_user_id", user.id, SESSION_COOKIE_OPTIONS);
+    response.cookies.set("cb_user_email", user.email, SESSION_COOKIE_OPTIONS);
 
     return response;
   } catch (error) {

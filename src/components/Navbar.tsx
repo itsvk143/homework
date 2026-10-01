@@ -345,8 +345,16 @@ export function Navbar({
 
                       <button
                         onClick={async () => {
-                          await fetch("/api/auth/logout", { method: "POST" });
-                          window.location.href = "/login";
+                          try {
+                            if (typeof window !== "undefined") {
+                              localStorage.removeItem("cb_user_id");
+                              localStorage.removeItem("cb_user_email");
+                            }
+                            await fetch("/api/auth/logout", { method: "POST" });
+                          } catch (e) {
+                            console.error("Logout error:", e);
+                          }
+                          window.location.href = "/login?logged_out=true";
                         }}
                         className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
                       >

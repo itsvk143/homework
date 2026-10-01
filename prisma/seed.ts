@@ -35,6 +35,7 @@ async function main() {
   // 2. Users: Admin, Teachers, Students
   const admin = await prisma.user.create({
     data: {
+      id: "user_admin_arvind_gupta",
       email: "admin@classboard.com",
       password: "admin123",
       name: "Dr. Arvind Gupta",
@@ -45,6 +46,7 @@ async function main() {
 
   const adminVikash = await prisma.user.create({
     data: {
+      id: "user_admin_vikash_kumar",
       email: "itsvikash143@gmail.com",
       password: "admin123",
       name: "Vikash Kumar (Admin)",
@@ -55,6 +57,7 @@ async function main() {
 
   const teacher1 = await prisma.user.create({
     data: {
+      id: "user_teacher_sunita_sharma",
       email: "teacher@classboard.com",
       password: "teacher123",
       name: "Mrs. Sunita Sharma",
@@ -72,6 +75,7 @@ async function main() {
 
   const teacher2 = await prisma.user.create({
     data: {
+      id: "user_teacher_rk_verma",
       email: "verma@classboard.com",
       password: "teacher123",
       name: "Mr. R. K. Verma",
@@ -89,6 +93,7 @@ async function main() {
 
   const rahul = await prisma.user.create({
     data: {
+      id: "user_student_rahul_kumar",
       email: "rahul@classboard.com",
       password: "student123",
       name: "Rahul Kumar",

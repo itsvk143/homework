@@ -19,10 +19,25 @@ export default function Home() {
   // Load session - authentication required
   const fetchSession = async () => {
     try {
-      const res = await fetch("/api/auth/me");
+      const storedId = typeof window !== "undefined" ? localStorage.getItem("cb_user_id") : null;
+      const storedEmail = typeof window !== "undefined" ? localStorage.getItem("cb_user_email") : null;
+      const headers: Record<string, string> = {};
+      if (storedId) headers["x-user-id"] = storedId;
+      if (storedEmail) headers["x-user-email"] = storedEmail;
+
+      const res = await fetch("/api/auth/me", {
+        cache: "no-store",
+        headers,
+      });
+
       if (res.ok) {
         const data = await res.json();
         if (data.user) {
+          if (typeof window !== "undefined") {
+            if (data.user.id) localStorage.setItem("cb_user_id", data.user.id);
+            if (data.user.email) localStorage.setItem("cb_user_email", data.user.email);
+          }
+
           const needsOnboarding =
             data.user.role === "PENDING" ||
             (data.user.role !== "ADMIN" &&
