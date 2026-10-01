@@ -193,12 +193,14 @@ export async function POST(req: NextRequest) {
           },
         });
       } else {
-        // Create new user with appropriate role (ADMIN, TEACHER, or STUDENT)
+        // Create new user with chosen role, or PENDING if not yet selected
         const targetRole = isAdmin
           ? "ADMIN"
           : requestedRole === "TEACHER"
           ? "TEACHER"
-          : "STUDENT";
+          : requestedRole === "STUDENT"
+          ? "STUDENT"
+          : "PENDING";
 
         user = await prisma.user.create({
           data: {
@@ -255,12 +257,22 @@ export async function POST(req: NextRequest) {
       metadata: { role: user.role, email: user.email },
     });
 
-    // 10. Determine redirect based on existing role
+    // 10. Determine redirect based on existing role:
+    // If new user has not selected role (PENDING or placeholder Online Student), redirect to /onboarding
+    const needsOnboarding =
+      user.role === "PENDING" ||
+      (!isAdmin &&
+        user.role === "STUDENT" &&
+        user.studentProfile?.schoolName === "Online Student" &&
+        user.studentProfile?.classGrade === "Class 11 & 12");
+
     const redirectUrl =
-      user.role === "TEACHER"
-        ? "/teacher/dashboard"
-        : user.role === "ADMIN"
+      user.role === "ADMIN"
         ? "/admin/dashboard"
+        : needsOnboarding
+        ? "/onboarding"
+        : user.role === "TEACHER"
+        ? "/teacher/dashboard"
         : "/student/dashboard";
 
     // 11. Create normal application session via cookie

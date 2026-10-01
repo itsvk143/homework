@@ -23,6 +23,17 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         if (data.user) {
+          const needsOnboarding =
+            data.user.role === "PENDING" ||
+            (data.user.role !== "ADMIN" &&
+              data.user.role === "STUDENT" &&
+              data.user.studentProfile?.schoolName === "Online Student" &&
+              data.user.studentProfile?.classGrade === "Class 11 & 12");
+
+          if (needsOnboarding) {
+            router.replace("/onboarding");
+            return;
+          }
           setCurrentUser(data.user);
         } else {
           // Authentication required: redirect to login

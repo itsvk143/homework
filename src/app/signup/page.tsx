@@ -50,6 +50,21 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const roleRef = useRef<"STUDENT" | "TEACHER">(role);
+  roleRef.current = role;
+  const schoolNameRef = useRef(schoolName);
+  schoolNameRef.current = schoolName;
+  const classGradeRef = useRef(classGrade);
+  classGradeRef.current = classGrade;
+  const sectionRef = useRef(section);
+  sectionRef.current = section;
+  const rollNoRef = useRef(rollNo);
+  rollNoRef.current = rollNo;
+  const subjectSpecialtyRef = useRef(subjectSpecialty);
+  subjectSpecialtyRef.current = subjectSpecialty;
+  const phoneRef = useRef(phone);
+  phoneRef.current = phone;
+
   const googleBtnRef = useRef<HTMLDivElement>(null);
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
@@ -63,19 +78,21 @@ export default function SignupPage() {
     setLoading(true);
     setError(null);
 
+    const chosenRole = roleRef.current;
+
     try {
       const res = await fetch("/auth/google", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           credential: response.credential,
-          role,
-          schoolName: schoolName.trim(),
-          classGrade: role === "STUDENT" ? classGrade : undefined,
-          section: role === "STUDENT" ? section : undefined,
-          rollNo: role === "STUDENT" && rollNo.trim() ? rollNo.trim() : undefined,
-          subjectSpecialty: role === "TEACHER" ? subjectSpecialty : undefined,
-          phone: role === "TEACHER" && phone.trim() ? phone.trim() : undefined,
+          role: chosenRole,
+          schoolName: schoolNameRef.current.trim(),
+          classGrade: chosenRole === "STUDENT" ? classGradeRef.current : undefined,
+          section: chosenRole === "STUDENT" ? sectionRef.current : undefined,
+          rollNo: chosenRole === "STUDENT" && rollNoRef.current.trim() ? rollNoRef.current.trim() : undefined,
+          subjectSpecialty: chosenRole === "TEACHER" ? subjectSpecialtyRef.current : undefined,
+          phone: chosenRole === "TEACHER" && phoneRef.current.trim() ? phoneRef.current.trim() : undefined,
         }),
       });
 
