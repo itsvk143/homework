@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logAuditEvent } from "@/lib/audit";
+import { isAdminEmail } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +14,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { email: email.toLowerCase().trim() },
       include: {
         studentProfile: true,
@@ -41,6 +42,17 @@ export async function POST(req: NextRequest) {
         { error: "Account is not active. Please contact administrator." },
         { status: 403 }
       );
+    }
+
+    if (isAdminEmail(user.email) && user.role !== "ADMIN") {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { role: "ADMIN" },
+        include: {
+          studentProfile: true,
+          teacherProfile: true,
+        },
+      });
     }
 
     await logAuditEvent({

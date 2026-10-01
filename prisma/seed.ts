@@ -42,6 +42,16 @@ async function main() {
     },
   });
 
+  const adminVikash = await prisma.user.create({
+    data: {
+      email: "itsvikash143@gmail.com",
+      password: "admin123",
+      name: "Vikash Kumar (Admin)",
+      role: "ADMIN",
+      avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+    },
+  });
+
   const teacher1 = await prisma.user.create({
     data: {
       email: "teacher@classboard.com",

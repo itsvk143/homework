@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logAuditEvent } from "@/lib/audit";
+import { isAdminEmail } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,7 +43,12 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanEmail = email.toLowerCase().trim();
-    const chosenRole = role === "TEACHER" ? "TEACHER" : "STUDENT";
+    const isSysAdmin = isAdminEmail(cleanEmail);
+    const chosenRole = isSysAdmin
+      ? "ADMIN"
+      : role === "TEACHER"
+      ? "TEACHER"
+      : "STUDENT";
 
     // 2. Check if email is already registered
     const existingUser = await prisma.user.findUnique({
@@ -61,7 +67,21 @@ export async function POST(req: NextRequest) {
 
     // 3. Create user with appropriate role profile
     let newUser;
-    if (chosenRole === "TEACHER") {
+    if (chosenRole === "ADMIN") {
+      newUser = await prisma.user.create({
+        data: {
+          name: name.trim(),
+          email: cleanEmail,
+          password: password,
+          role: "ADMIN",
+          status: "ACTIVE",
+        },
+        include: {
+          studentProfile: true,
+          teacherProfile: true,
+        },
+      });
+    } else if (chosenRole === "TEACHER") {
       newUser = await prisma.user.create({
         data: {
           name: name.trim(),
@@ -121,7 +141,9 @@ export async function POST(req: NextRequest) {
 
     // 5. Determine redirection
     const redirectUrl =
-      newUser.role === "TEACHER"
+      newUser.role === "ADMIN"
+        ? "/admin/dashboard"
+        : newUser.role === "TEACHER"
         ? "/teacher/dashboard"
         : "/student/dashboard";
 

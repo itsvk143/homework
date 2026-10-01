@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { OAuth2Client } from "google-auth-library";
 import { prisma } from "@/lib/prisma";
 import { logAuditEvent } from "@/lib/audit";
+import { isAdminEmail } from "@/lib/auth";
 
 // In-memory rate limiting map: ip -> { count, resetAt }
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -138,6 +139,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const isAdmin = isAdminEmail(email);
+
     // 8. Find corresponding application user by permanent google_provider_id
     let user = await prisma.user.findUnique({
       where: { google_provider_id: googleSub },
@@ -155,67 +158,93 @@ export async function POST(req: NextRequest) {
           { status: 403 }
         );
       }
+      if (isAdmin && user.role !== "ADMIN") {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { role: "ADMIN" },
+          include: {
+            studentProfile: true,
+            teacherProfile: true,
+          },
+        });
+      }
     } else {
       // Check if an existing account uses the same email
       const existingEmailUser = await prisma.user.findUnique({
         where: { email },
-      });
-
-      if (existingEmailUser) {
-        // Requirement 7: Do NOT silently merge accounts.
-        return NextResponse.json(
-          {
-            error:
-              "An account with this email already exists. Please use your existing login method.",
-          },
-          { status: 409 }
-        );
-      }
-
-      // Requirement 8 & 9: Create new user with chosen role (TEACHER or STUDENT)
-      const isTeacher = requestedRole === "TEACHER";
-      user = await prisma.user.create({
-        data: {
-          email,
-          name,
-          avatarUrl,
-          google_provider_id: googleSub,
-          role: isTeacher ? "TEACHER" : "STUDENT",
-          status: "ACTIVE",
-          ...(isTeacher
-            ? {
-                teacherProfile: {
-                  create: {
-                    subjectSpecialty:
-                      subjectSpecialty?.trim() || "Mathematics & Science",
-                    phone: phone?.trim() || null,
-                    bio: `Teacher at ${schoolName || "ClassBoard"}`,
-                  },
-                },
-              }
-            : {
-                studentProfile: {
-                  create: {
-                    classGrade: classGrade?.trim() || "Class 8",
-                    section: section?.trim() || "A",
-                    rollNo: rollNo?.trim() || null,
-                    schoolName: schoolName?.trim() || "Delhi Public School",
-                  },
-                },
-              }),
-        },
         include: {
           studentProfile: true,
           teacherProfile: true,
         },
       });
 
-      await logAuditEvent({
-        action: "GOOGLE_OAUTH_REGISTER",
-        entityType: "User",
-        entityId: user.id,
-        metadata: { email: user.email, role: user.role, name: user.name },
-      });
+      if (existingEmailUser) {
+        // Link Google OAuth and ensure admin elevation if applicable
+        user = await prisma.user.update({
+          where: { id: existingEmailUser.id },
+          data: {
+            google_provider_id: googleSub,
+            avatarUrl: avatarUrl || existingEmailUser.avatarUrl,
+            role: isAdmin ? "ADMIN" : existingEmailUser.role,
+          },
+          include: {
+            studentProfile: true,
+            teacherProfile: true,
+          },
+        });
+      } else {
+        // Create new user with appropriate role (ADMIN, TEACHER, or STUDENT)
+        const targetRole = isAdmin
+          ? "ADMIN"
+          : requestedRole === "TEACHER"
+          ? "TEACHER"
+          : "STUDENT";
+
+        user = await prisma.user.create({
+          data: {
+            email,
+            name,
+            avatarUrl,
+            google_provider_id: googleSub,
+            role: targetRole,
+            status: "ACTIVE",
+            ...(targetRole === "TEACHER"
+              ? {
+                  teacherProfile: {
+                    create: {
+                      subjectSpecialty:
+                        subjectSpecialty?.trim() || "Mathematics & Science",
+                      phone: phone?.trim() || null,
+                      bio: `Teacher at ${schoolName || "ClassBoard"}`,
+                    },
+                  },
+                }
+              : targetRole === "STUDENT"
+              ? {
+                  studentProfile: {
+                    create: {
+                      classGrade: classGrade?.trim() || "Class 8",
+                      section: section?.trim() || "A",
+                      rollNo: rollNo?.trim() || null,
+                      schoolName: schoolName?.trim() || "Delhi Public School",
+                    },
+                  },
+                }
+              : {}),
+          },
+          include: {
+            studentProfile: true,
+            teacherProfile: true,
+          },
+        });
+
+        await logAuditEvent({
+          action: "GOOGLE_OAUTH_REGISTER",
+          entityType: "User",
+          entityId: user.id,
+          metadata: { email: user.email, role: user.role, name: user.name },
+        });
+      }
     }
 
     // 9. Audit event for login
