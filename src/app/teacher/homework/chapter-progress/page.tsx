@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { TeacherChapterProgress } from "@/components/TeacherChapterProgress";
 import { GlobalSearchModal } from "@/components/GlobalSearchModal";
@@ -9,12 +9,12 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 function ChapterProgressContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const bookId = searchParams.get("bookId");
   const chapterId = searchParams.get("chapterId");
 
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [demoUsers, setDemoUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
@@ -23,11 +23,21 @@ function ChapterProgressContent() {
       const res = await fetch("/api/auth/me");
       if (res.ok) {
         const data = await res.json();
+        if (!data.user) {
+          router.replace("/login");
+          return;
+        }
+        if (data.user.role === "STUDENT") {
+          router.replace("/");
+          return;
+        }
         setCurrentUser(data.user);
-        setDemoUsers(data.demoUsers || []);
+      } else {
+        router.replace("/login");
       }
     } catch (err) {
       console.error(err);
+      router.replace("/login");
     } finally {
       setLoading(false);
     }
@@ -36,25 +46,6 @@ function ChapterProgressContent() {
   useEffect(() => {
     fetchSession();
   }, []);
-
-  const handleSwitchUser = async (userId: string) => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/auth/switch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCurrentUser(data.user);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading && !currentUser) {
     return (
@@ -71,11 +62,7 @@ function ChapterProgressContent() {
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       <Navbar
         currentUser={currentUser}
-        demoUsers={demoUsers}
-        onSwitchUser={handleSwitchUser}
         onOpenSearch={() => setIsSearchOpen(true)}
-        isMobileSimulator={false}
-        onToggleMobileSimulator={() => {}}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-4">

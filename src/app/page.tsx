@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { StudentDashboard } from "@/components/StudentDashboard";
 import { TeacherDashboard } from "@/components/TeacherDashboard";
@@ -9,23 +10,33 @@ import { MobileSimulator } from "@/components/MobileSimulator";
 import { GlobalSearchModal } from "@/components/GlobalSearchModal";
 
 export default function Home() {
+  const router = useRouter();
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [demoUsers, setDemoUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isMobileSimulator, setIsMobileSimulator] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  // Load session
+  // Load session - authentication required
   const fetchSession = async () => {
     try {
       const res = await fetch("/api/auth/me");
       if (res.ok) {
         const data = await res.json();
-        setCurrentUser(data.user);
-        setDemoUsers(data.demoUsers || []);
+        if (data.user) {
+          setCurrentUser(data.user);
+        } else {
+          // Authentication required: redirect to login
+          router.replace("/login");
+          return;
+        }
+      } else {
+        router.replace("/login");
+        return;
       }
     } catch (err) {
       console.error("Failed to load user session:", err);
+      router.replace("/login");
+      return;
     } finally {
       setLoading(false);
     }
@@ -45,31 +56,12 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const handleSwitchUser = async (userId: string) => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/auth/switch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCurrentUser(data.user);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading && !currentUser) {
+  if (loading || !currentUser) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs font-semibold text-slate-500">Loading ClassBoard Platform...</p>
+          <p className="text-xs font-semibold text-slate-500">Checking authentication...</p>
         </div>
       </div>
     );
@@ -80,8 +72,6 @@ export default function Home() {
       {/* Top App Header */}
       <Navbar
         currentUser={currentUser}
-        demoUsers={demoUsers}
-        onSwitchUser={handleSwitchUser}
         onOpenSearch={() => setIsSearchOpen(true)}
         isMobileSimulator={isMobileSimulator}
         onToggleMobileSimulator={() => setIsMobileSimulator(!isMobileSimulator)}

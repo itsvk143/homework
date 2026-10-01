@@ -36,19 +36,15 @@ interface User {
 
 interface NavbarProps {
   currentUser: User | null;
-  demoUsers: User[];
-  onSwitchUser: (userId: string) => void;
   onOpenSearch: () => void;
-  isMobileSimulator: boolean;
-  onToggleMobileSimulator: () => void;
+  isMobileSimulator?: boolean;
+  onToggleMobileSimulator?: () => void;
 }
 
 export function Navbar({
   currentUser,
-  demoUsers,
-  onSwitchUser,
   onOpenSearch,
-  isMobileSimulator,
+  isMobileSimulator = false,
   onToggleMobileSimulator,
 }: NavbarProps) {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -146,27 +142,29 @@ export function Navbar({
         {/* Action Controls */}
         <div className="flex items-center gap-2.5 sm:gap-3">
           {/* Mobile Simulator Toggle */}
-          <button
-            onClick={onToggleMobileSimulator}
-            title={isMobileSimulator ? "Switch to Desktop View" : "Preview Mobile App Experience"}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl border transition-all ${
-              isMobileSimulator
-                ? "bg-indigo-600 text-white border-indigo-700 shadow-sm shadow-indigo-500/30"
-                : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200"
-            }`}
-          >
-            {isMobileSimulator ? (
-              <>
-                <Monitor className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Desktop View</span>
-              </>
-            ) : (
-              <>
-                <Smartphone className="w-3.5 h-3.5 text-indigo-600" />
-                <span className="hidden sm:inline">Mobile Preview</span>
-              </>
-            )}
-          </button>
+          {onToggleMobileSimulator && (
+            <button
+              onClick={onToggleMobileSimulator}
+              title={isMobileSimulator ? "Switch to Desktop View" : "Preview Mobile App Experience"}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl border transition-all ${
+                isMobileSimulator
+                  ? "bg-indigo-600 text-white border-indigo-700 shadow-sm shadow-indigo-500/30"
+                  : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200"
+              }`}
+            >
+              {isMobileSimulator ? (
+                <>
+                  <Monitor className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Desktop View</span>
+                </>
+              ) : (
+                <>
+                  <Smartphone className="w-3.5 h-3.5 text-indigo-600" />
+                  <span className="hidden sm:inline">Mobile Preview</span>
+                </>
+              )}
+            </button>
+          )}
 
           {/* Notifications Dropdown */}
           <div className="relative">
@@ -235,131 +233,124 @@ export function Navbar({
             )}
           </div>
 
-          {/* User Role Switcher Dropdown */}
+          {/* Authenticated User Account Menu */}
           <div className="relative">
-            <button
-              onClick={() => setShowUserDropdown(!showUserDropdown)}
-              className="flex items-center gap-2.5 p-1 sm:px-2.5 sm:py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-all shadow-xs"
-            >
-              {currentUser?.avatarUrl ? (
-                <img
-                  src={currentUser.avatarUrl}
-                  alt={currentUser.name}
-                  className="w-8 h-8 rounded-lg object-cover ring-2 ring-indigo-500/20"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs">
-                  {currentUser?.name?.slice(0, 2).toUpperCase() || "U"}
-                </div>
-              )}
-              <div className="text-left hidden sm:block">
-                <div className="text-xs font-bold text-slate-900 line-clamp-1 leading-tight">
-                  {currentUser?.name}
-                </div>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span
-                    className={`text-[10px] font-semibold px-1.5 py-0.2 rounded border ${getRoleBadgeColor(
-                      currentUser?.role
-                    )}`}
-                  >
-                    {currentUser?.role}
-                  </span>
-                  {currentUser?.studentProfile && (
-                    <span className="text-[10px] text-slate-500">
-                      {currentUser.studentProfile.classGrade}-{currentUser.studentProfile.section}
-                    </span>
+            {currentUser ? (
+              <>
+                <button
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  className="flex items-center gap-2.5 p-1 sm:px-2.5 sm:py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-all shadow-xs cursor-pointer"
+                >
+                  {currentUser.avatarUrl ? (
+                    <img
+                      src={currentUser.avatarUrl}
+                      alt={currentUser.name}
+                      className="w-8 h-8 rounded-lg object-cover ring-2 ring-indigo-500/20"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs">
+                      {currentUser.name?.slice(0, 2).toUpperCase() || "U"}
+                    </div>
                   )}
-                </div>
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
-            </button>
-
-            {showUserDropdown && (
-              <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 py-2.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="px-3.5 py-2 border-b border-slate-100">
-                  <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Switch Active Persona (Demo)
-                  </p>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Experience all 3 dashboards seamlessly
-                  </p>
-                </div>
-
-                <div className="py-1">
-                  {demoUsers.map((u) => {
-                    const isSelected = u.id === currentUser?.id;
-                    return (
-                      <button
-                        key={u.id}
-                        onClick={() => {
-                          onSwitchUser(u.id);
-                          setShowUserDropdown(false);
-                        }}
-                        className={`w-full flex items-center justify-between px-3.5 py-2.5 text-left text-xs transition-colors ${
-                          isSelected ? "bg-indigo-50 text-indigo-900 font-semibold" : "hover:bg-slate-50 text-slate-700"
-                        }`}
+                  <div className="text-left hidden sm:block">
+                    <div className="text-xs font-bold text-slate-900 line-clamp-1 leading-tight">
+                      {currentUser.name}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span
+                        className={`text-[10px] font-semibold px-1.5 py-0.2 rounded border ${getRoleBadgeColor(
+                          currentUser.role
+                        )}`}
                       >
-                        <div className="flex items-center gap-2.5">
-                          {u.avatarUrl ? (
-                            <img
-                              src={u.avatarUrl}
-                              alt={u.name}
-                              className="w-7 h-7 rounded-md object-cover"
-                            />
-                          ) : (
-                            <div className="w-7 h-7 rounded-md bg-slate-100 text-slate-600 font-bold flex items-center justify-center text-[11px]">
-                              {u.name.slice(0, 2).toUpperCase()}
-                            </div>
-                          )}
-                          <div>
-                            <div className="text-slate-900 font-medium">{u.name}</div>
-                            <div className="text-[10px] text-slate-500">
-                              {u.role === "STUDENT" && u.studentProfile
-                                ? `${u.studentProfile.classGrade}-${u.studentProfile.section} (Roll ${u.studentProfile.rollNo || "--"})`
-                                : u.role === "TEACHER"
-                                ? u.teacherProfile?.subjectSpecialty || "Teacher"
-                                : "System Administrator"}
-                            </div>
+                        {currentUser.role}
+                      </span>
+                      {currentUser.studentProfile && (
+                        <span className="text-[10px] text-slate-500">
+                          {currentUser.studentProfile.classGrade}-{currentUser.studentProfile.section}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
+                </button>
+
+                {showUserDropdown && (
+                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 py-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="px-4 pb-3 border-b border-slate-100">
+                      <div className="flex items-center gap-3">
+                        {currentUser.avatarUrl ? (
+                          <img
+                            src={currentUser.avatarUrl}
+                            alt={currentUser.name}
+                            className="w-10 h-10 rounded-xl object-cover ring-2 ring-indigo-500/20"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-sm">
+                            {currentUser.name?.slice(0, 2).toUpperCase() || "U"}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-slate-900 truncate">
+                            {currentUser.name}
+                          </p>
+                          <p className="text-[11px] text-slate-500 truncate">
+                            {currentUser.email}
+                          </p>
+                          <div className="mt-1">
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${getRoleBadgeColor(
+                                currentUser.role
+                              )}`}
+                            >
+                              {currentUser.role} ACCOUNT
+                            </span>
                           </div>
                         </div>
+                      </div>
 
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${getRoleBadgeColor(
-                              u.role
-                            )}`}
-                          >
-                            {u.role}
-                          </span>
-                          {isSelected && <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />}
+                      {currentUser.studentProfile && (
+                        <div className="mt-3 p-2 bg-slate-50 rounded-xl text-[10px] text-slate-600 space-y-0.5">
+                          <p className="font-semibold text-slate-800">
+                            {currentUser.studentProfile.classGrade} • Section {currentUser.studentProfile.section}
+                          </p>
+                          <p className="text-slate-500">
+                            Roll No: {currentUser.studentProfile.rollNo || "Unassigned"}
+                          </p>
                         </div>
+                      )}
+
+                      {currentUser.teacherProfile && (
+                        <div className="mt-3 p-2 bg-slate-50 rounded-xl text-[10px] text-slate-600">
+                          <p className="font-semibold text-slate-800">
+                            Specialty: {currentUser.teacherProfile.subjectSpecialty}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-2 px-3">
+                      <button
+                        onClick={async () => {
+                          await fetch("/api/auth/logout", { method: "POST" });
+                          window.location.href = "/login";
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>Sign Out</span>
                       </button>
-                    );
-                  })}
-                </div>
-
-                <div className="pt-2 mt-1 border-t border-slate-100 px-2 space-y-1">
-                  <Link
-                    href="/login"
-                    onClick={() => setShowUserDropdown(false)}
-                    className="flex items-center gap-2 px-2.5 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 rounded-xl transition-colors"
-                  >
-                    <LogIn className="w-3.5 h-3.5" />
-                    <span>Sign in with Google / Email</span>
-                  </Link>
-
-                  <button
-                    onClick={async () => {
-                      await fetch("/api/auth/logout", { method: "POST" });
-                      window.location.href = "/login";
-                    }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 text-xs font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span>Sign Out</span>
-                  </button>
-                </div>
-              </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <Link
+                href="/login"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-all"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </Link>
             )}
           </div>
         </div>

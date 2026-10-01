@@ -18,40 +18,10 @@ export async function getCurrentUser() {
     }
   }
 
-  // Fallback to default demo student (Rahul Kumar)
-  const defaultUser = await prisma.user.findFirst({
-    where: { email: "rahul@classboard.com" },
-    include: {
-      studentProfile: true,
-      teacherProfile: true,
-    },
-  });
-
-  return defaultUser;
+  // Authentication required: No demo fallback. Returns null if not logged in.
+  return null;
 }
 
 export async function listDemoUsers() {
-  return prisma.user.findMany({
-    where: { status: "ACTIVE" },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      avatarUrl: true,
-      studentProfile: {
-        select: {
-          classGrade: true,
-          section: true,
-          rollNo: true,
-        },
-      },
-      teacherProfile: {
-        select: {
-          subjectSpecialty: true,
-        },
-      },
-    },
-    orderBy: { role: "asc" },
-  });
+  return [];
 }
