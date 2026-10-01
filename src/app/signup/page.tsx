@@ -44,8 +44,62 @@ export default function SignupPage() {
   const [rollNo, setRollNo] = useState("");
 
   // Teacher specific
-  const [subjectSpecialty, setSubjectSpecialty] = useState("Mathematics");
+  const STANDARD_CLASSES = [
+    "Class 6",
+    "Class 7",
+    "Class 8",
+    "Class 9",
+    "Class 10",
+    "Class 11",
+    "Class 12",
+    "JEE / NEET Dropper",
+  ];
+
+  const STANDARD_SUBJECTS = [
+    "Mathematics",
+    "Science",
+    "Physics",
+    "Chemistry",
+    "Biology",
+    "English",
+    "Hindi",
+    "Social Science",
+    "Computer Science",
+  ];
+
+  const [teacherClasses, setTeacherClasses] = useState<string[]>(["Class 9", "Class 10"]);
+  const [teacherSubjects, setTeacherSubjects] = useState<string[]>(["Mathematics"]);
+  const [subjectSpecialty, setSubjectSpecialty] = useState("Mathematics (Class 9, Class 10)");
   const [phone, setPhone] = useState("");
+
+  const composeSpecialty = (subs: string[], classes: string[]) => {
+    if (subs.length === 0 && classes.length === 0) return "";
+    const subPart = subs.join(" & ");
+    const classPart = classes.length > 0 ? ` (${classes.join(", ")})` : "";
+    return `${subPart}${classPart}`.trim();
+  };
+
+  const toggleTeacherClass = (cls: string) => {
+    setTeacherClasses((prev) => {
+      const updated = prev.includes(cls)
+        ? prev.filter((c) => c !== cls)
+        : [...prev, cls];
+      const composed = composeSpecialty(teacherSubjects, updated);
+      if (composed) setSubjectSpecialty(composed);
+      return updated;
+    });
+  };
+
+  const toggleTeacherSubject = (sub: string) => {
+    setTeacherSubjects((prev) => {
+      const updated = prev.includes(sub)
+        ? prev.filter((s) => s !== sub)
+        : [...prev, sub];
+      const composed = composeSpecialty(updated, teacherClasses);
+      if (composed) setSubjectSpecialty(composed);
+      return updated;
+    });
+  };
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -497,7 +551,7 @@ export default function SignupPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="p-4 bg-indigo-50/50 border border-indigo-200/80 rounded-2xl space-y-3">
+                  <div className="p-4 bg-indigo-50/50 border border-indigo-200/80 rounded-2xl space-y-4">
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 mb-1">
                         School / Academy / Institute
@@ -514,26 +568,130 @@ export default function SignupPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* 1. Classes Multi-Select */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold text-slate-700">
+                          Classes / Grades You Teach (Select Multiple) *
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTeacherClasses([...STANDARD_CLASSES]);
+                              const composed = composeSpecialty(teacherSubjects, STANDARD_CLASSES);
+                              if (composed) setSubjectSpecialty(composed);
+                            }}
+                            className="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer"
+                          >
+                            All Classes
+                          </button>
+                          <span className="text-slate-300">|</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTeacherClasses([]);
+                              const composed = composeSpecialty(teacherSubjects, []);
+                              if (composed) setSubjectSpecialty(composed);
+                            }}
+                            className="text-[10px] font-bold text-slate-500 hover:underline cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5 p-2 bg-white rounded-xl border border-slate-200">
+                        {STANDARD_CLASSES.map((cls) => {
+                          const isSelected = teacherClasses.includes(cls);
+                          return (
+                            <button
+                              key={cls}
+                              type="button"
+                              onClick={() => toggleTeacherClass(cls)}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                isSelected
+                                  ? "bg-indigo-600 text-white shadow-2xs"
+                                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                              }`}
+                            >
+                              {isSelected && <CheckCircle2 className="w-3 h-3 text-white" />}
+                              <span>{cls}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* 2. Subjects Multi-Select */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold text-slate-700">
+                          Subjects You Teach (Select Multiple) *
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTeacherSubjects([...STANDARD_SUBJECTS]);
+                              const composed = composeSpecialty(STANDARD_SUBJECTS, teacherClasses);
+                              if (composed) setSubjectSpecialty(composed);
+                            }}
+                            className="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer"
+                          >
+                            Select All
+                          </button>
+                          <span className="text-slate-300">|</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTeacherSubjects([]);
+                              const composed = composeSpecialty([], teacherClasses);
+                              if (composed) setSubjectSpecialty(composed);
+                            }}
+                            className="text-[10px] font-bold text-slate-500 hover:underline cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5 p-2 bg-white rounded-xl border border-slate-200">
+                        {STANDARD_SUBJECTS.map((sub) => {
+                          const isSelected = teacherSubjects.includes(sub);
+                          return (
+                            <button
+                              key={sub}
+                              type="button"
+                              onClick={() => toggleTeacherSubject(sub)}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                isSelected
+                                  ? "bg-indigo-600 text-white shadow-2xs"
+                                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                              }`}
+                            >
+                              {isSelected && <CheckCircle2 className="w-3 h-3 text-white" />}
+                              <span>{sub}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* 3. Combined Specialty Text & Contact Phone */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Primary Subject Specialty *
+                          Subject Specialty Summary *
                         </label>
-                        <select
+                        <input
+                          type="text"
+                          required
                           value={subjectSpecialty}
                           onChange={(e) => setSubjectSpecialty(e.target.value)}
-                          className="w-full px-3 py-2.5 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-medium"
-                        >
-                          <option value="Mathematics">Mathematics</option>
-                          <option value="Science & Mathematics">Science & Mathematics</option>
-                          <option value="Physics">Physics</option>
-                          <option value="Chemistry">Chemistry</option>
-                          <option value="Biology">Biology</option>
-                          <option value="Science & English">Science & English</option>
-                          <option value="Social Studies">Social Studies</option>
-                          <option value="Computer Science">Computer Science</option>
-                          <option value="General Academic">General Academic</option>
-                        </select>
+                          placeholder="e.g. Mathematics & Science (Class 9, Class 10)"
+                          className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-medium"
+                        />
                       </div>
 
                       <div>
@@ -545,7 +703,7 @@ export default function SignupPage() {
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
                           placeholder="+91 98765 43210"
-                          className="w-full px-3 py-2.5 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-medium"
+                          className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-medium"
                         />
                       </div>
                     </div>
