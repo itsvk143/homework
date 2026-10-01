@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, isAdminEmail } from "@/lib/auth";
+import {
+  getCurrentUser,
+  isAdminEmail,
+  createSessionToken,
+  SESSION_COOKIE_OPTIONS,
+} from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const headerUserId = req.headers.get("x-user-id");
+    const headerUserEmail = req.headers.get("x-user-email");
+    const headerUserRole = req.headers.get("x-user-role");
+    const headerSessionToken = req.headers.get("x-session-token");
+    const fallback = headerUserEmail || headerUserId;
+
+    const user = await getCurrentUser(fallback, headerSessionToken, headerUserRole);
     if (!user) {
       return NextResponse.json(
         { error: "Unauthorized. Please sign in first." },
@@ -100,6 +111,8 @@ export async function POST(req: NextRequest) {
       metadata: { role: fullUser?.role, email: fullUser?.email },
     });
 
+    const sessionToken = createSessionToken(fullUser);
+
     const redirectUrl =
       fullUser?.role === "ADMIN"
         ? "/admin/dashboard"
@@ -107,11 +120,23 @@ export async function POST(req: NextRequest) {
         ? "/teacher/dashboard"
         : "/student/dashboard";
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       user: fullUser,
+      sessionToken,
       redirectUrl,
     });
+
+    if (fullUser) {
+      response.cookies.set("cb_user_id", fullUser.id, SESSION_COOKIE_OPTIONS);
+      response.cookies.set("cb_user_email", fullUser.email, SESSION_COOKIE_OPTIONS);
+      response.cookies.set("cb_user_role", fullUser.role, SESSION_COOKIE_OPTIONS);
+      if (sessionToken) {
+        response.cookies.set("cb_session", sessionToken, SESSION_COOKIE_OPTIONS);
+      }
+    }
+
+    return response;
   } catch (error) {
     console.error("Error in /api/auth/onboarding:", error);
     return NextResponse.json(

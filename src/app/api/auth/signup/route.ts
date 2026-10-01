@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logAuditEvent } from "@/lib/audit";
-import { isAdminEmail, SESSION_COOKIE_OPTIONS } from "@/lib/auth";
+import { isAdminEmail, SESSION_COOKIE_OPTIONS, createSessionToken } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -147,6 +147,8 @@ export async function POST(req: NextRequest) {
         ? "/teacher/dashboard"
         : "/student/dashboard";
 
+    const sessionToken = createSessionToken(newUser);
+
     const response = NextResponse.json({
       success: true,
       user: {
@@ -158,12 +160,17 @@ export async function POST(req: NextRequest) {
         studentProfile: newUser.studentProfile,
         teacherProfile: newUser.teacherProfile,
       },
+      sessionToken,
       redirectUrl,
     });
 
     // 6. Set persistent session cookies (1 year duration)
     response.cookies.set("cb_user_id", newUser.id, SESSION_COOKIE_OPTIONS);
     response.cookies.set("cb_user_email", newUser.email.toLowerCase().trim(), SESSION_COOKIE_OPTIONS);
+    response.cookies.set("cb_user_role", newUser.role, SESSION_COOKIE_OPTIONS);
+    if (sessionToken) {
+      response.cookies.set("cb_session", sessionToken, SESSION_COOKIE_OPTIONS);
+    }
 
     return response;
   } catch (error) {

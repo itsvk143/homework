@@ -34,9 +34,13 @@ export default function LoginPage() {
 
     const storedId = typeof window !== "undefined" ? localStorage.getItem("cb_user_id") : null;
     const storedEmail = typeof window !== "undefined" ? localStorage.getItem("cb_user_email") : null;
+    const storedRole = typeof window !== "undefined" ? localStorage.getItem("cb_user_role") : null;
+    const storedToken = typeof window !== "undefined" ? localStorage.getItem("cb_session_token") : null;
     const headers: Record<string, string> = {};
     if (storedId) headers["x-user-id"] = storedId;
     if (storedEmail) headers["x-user-email"] = storedEmail;
+    if (storedRole) headers["x-user-role"] = storedRole;
+    if (storedToken) headers["x-session-token"] = storedToken;
 
     fetch("/api/auth/me", {
       cache: "no-store",
@@ -47,6 +51,8 @@ export default function LoginPage() {
         if (data?.user) {
           if (data.user.id) localStorage.setItem("cb_user_id", data.user.id);
           if (data.user.email) localStorage.setItem("cb_user_email", data.user.email);
+          if (data.user.role) localStorage.setItem("cb_user_role", data.user.role);
+          if (data.sessionToken) localStorage.setItem("cb_session_token", data.sessionToken);
           window.location.href = "/";
         } else {
           setCheckingSession(false);
@@ -67,10 +73,14 @@ export default function LoginPage() {
     setError(null);
 
     try {
+      const storedRole = typeof window !== "undefined" ? localStorage.getItem("cb_user_role") : null;
       const res = await fetch("/auth/google", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ credential: response.credential }),
+        body: JSON.stringify({
+          credential: response.credential,
+          role: storedRole || undefined,
+        }),
       });
 
       const data = await res.json();
@@ -79,6 +89,8 @@ export default function LoginPage() {
         // Remember in localStorage for resilience
         if (data.user?.id) localStorage.setItem("cb_user_id", data.user.id);
         if (data.user?.email) localStorage.setItem("cb_user_email", data.user.email);
+        if (data.user?.role) localStorage.setItem("cb_user_role", data.user.role);
+        if (data.sessionToken) localStorage.setItem("cb_session_token", data.sessionToken);
         window.location.href = data.redirectUrl || "/";
       } else {
         setError(data.error || "Google authentication could not be verified. Please try again.");
@@ -150,6 +162,8 @@ export default function LoginPage() {
         // Remember in localStorage for resilience
         if (data.user?.id) localStorage.setItem("cb_user_id", data.user.id);
         if (data.user?.email) localStorage.setItem("cb_user_email", data.user.email);
+        if (data.user?.role) localStorage.setItem("cb_user_role", data.user.role);
+        if (data.sessionToken) localStorage.setItem("cb_session_token", data.sessionToken);
         window.location.href = data.redirectUrl || "/";
       } else {
         setError(data.error || "Invalid email or password.");

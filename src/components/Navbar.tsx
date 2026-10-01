@@ -349,6 +349,8 @@ export function Navbar({
                             if (typeof window !== "undefined") {
                               localStorage.removeItem("cb_user_id");
                               localStorage.removeItem("cb_user_email");
+                              localStorage.removeItem("cb_user_role");
+                              localStorage.removeItem("cb_session_token");
                             }
                             await fetch("/api/auth/logout", { method: "POST" });
                           } catch (e) {

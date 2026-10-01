@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logAuditEvent } from "@/lib/audit";
-import { isAdminEmail, SESSION_COOKIE_OPTIONS } from "@/lib/auth";
+import { isAdminEmail, SESSION_COOKIE_OPTIONS, createSessionToken } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -62,6 +62,8 @@ export async function POST(req: NextRequest) {
       metadata: { email: user.email, role: user.role },
     });
 
+    const sessionToken = createSessionToken(user);
+
     const redirectUrl =
       user.role === "TEACHER"
         ? "/teacher/dashboard"
@@ -80,11 +82,16 @@ export async function POST(req: NextRequest) {
         studentProfile: user.studentProfile,
         teacherProfile: user.teacherProfile,
       },
+      sessionToken,
       redirectUrl,
     });
 
     response.cookies.set("cb_user_id", user.id, SESSION_COOKIE_OPTIONS);
     response.cookies.set("cb_user_email", user.email, SESSION_COOKIE_OPTIONS);
+    response.cookies.set("cb_user_role", user.role, SESSION_COOKIE_OPTIONS);
+    if (sessionToken) {
+      response.cookies.set("cb_session", sessionToken, SESSION_COOKIE_OPTIONS);
+    }
 
     return response;
   } catch (error) {

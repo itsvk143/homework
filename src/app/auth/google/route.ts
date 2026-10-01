@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { OAuth2Client } from "google-auth-library";
 import { prisma } from "@/lib/prisma";
 import { logAuditEvent } from "@/lib/audit";
-import { isAdminEmail, SESSION_COOKIE_OPTIONS } from "@/lib/auth";
+import { isAdminEmail, SESSION_COOKIE_OPTIONS, createSessionToken } from "@/lib/auth";
 
 // In-memory rate limiting map: ip -> { count, resetAt }
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -193,12 +193,17 @@ export async function POST(req: NextRequest) {
           },
         });
       } else {
+        // Check if there is an existing role in cookies or headers (e.g. from prior onboarding/session)
+        const cookieRole = req.cookies.get("cb_user_role")?.value;
+        const headerRole = req.headers.get("x-user-role");
+        const existingRole = requestedRole || cookieRole || headerRole;
+
         // Create new user with chosen role, or PENDING if not yet selected
         const targetRole = isAdmin
           ? "ADMIN"
-          : requestedRole === "TEACHER"
+          : existingRole === "TEACHER"
           ? "TEACHER"
-          : requestedRole === "STUDENT"
+          : existingRole === "STUDENT"
           ? "STUDENT"
           : "PENDING";
 
@@ -275,7 +280,10 @@ export async function POST(req: NextRequest) {
         ? "/teacher/dashboard"
         : "/student/dashboard";
 
-    // 11. Create normal application session via cookie
+    // 11. Create tamper-proof session token
+    const sessionToken = createSessionToken(user);
+
+    // 12. Create normal application session via cookies
     const response = NextResponse.json({
       success: true,
       user: {
@@ -287,11 +295,16 @@ export async function POST(req: NextRequest) {
         studentProfile: user.studentProfile,
         teacherProfile: user.teacherProfile,
       },
+      sessionToken,
       redirectUrl,
     });
 
     response.cookies.set("cb_user_id", user.id, SESSION_COOKIE_OPTIONS);
     response.cookies.set("cb_user_email", user.email, SESSION_COOKIE_OPTIONS);
+    response.cookies.set("cb_user_role", user.role, SESSION_COOKIE_OPTIONS);
+    if (sessionToken) {
+      response.cookies.set("cb_session", sessionToken, SESSION_COOKIE_OPTIONS);
+    }
 
     return response;
   } catch (error) {

@@ -43,6 +43,35 @@ export default function SignupPage() {
   const [section, setSection] = useState("A");
   const [rollNo, setRollNo] = useState("");
 
+  // Check existing session on mount - if logged in, auto-redirect immediately!
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("logged_out") === "true") return;
+
+    const storedId = typeof window !== "undefined" ? localStorage.getItem("cb_user_id") : null;
+    const storedEmail = typeof window !== "undefined" ? localStorage.getItem("cb_user_email") : null;
+    const storedRole = typeof window !== "undefined" ? localStorage.getItem("cb_user_role") : null;
+    const storedToken = typeof window !== "undefined" ? localStorage.getItem("cb_session_token") : null;
+    const headers: Record<string, string> = {};
+    if (storedId) headers["x-user-id"] = storedId;
+    if (storedEmail) headers["x-user-email"] = storedEmail;
+    if (storedRole) headers["x-user-role"] = storedRole;
+    if (storedToken) headers["x-session-token"] = storedToken;
+
+    fetch("/api/auth/me", { cache: "no-store", headers })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.user) {
+          if (data.user.id) localStorage.setItem("cb_user_id", data.user.id);
+          if (data.user.email) localStorage.setItem("cb_user_email", data.user.email);
+          if (data.user.role) localStorage.setItem("cb_user_role", data.user.role);
+          if (data.sessionToken) localStorage.setItem("cb_session_token", data.sessionToken);
+          window.location.href = "/";
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Teacher specific
   const STANDARD_CLASSES = [
     "Class 6",
@@ -153,6 +182,12 @@ export default function SignupPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
+        if (typeof window !== "undefined") {
+          if (data.user?.id) localStorage.setItem("cb_user_id", data.user.id);
+          if (data.user?.email) localStorage.setItem("cb_user_email", data.user.email);
+          if (data.user?.role) localStorage.setItem("cb_user_role", data.user.role);
+          if (data.sessionToken) localStorage.setItem("cb_session_token", data.sessionToken);
+        }
         window.location.href = data.redirectUrl || "/";
       } else {
         setError(data.error || "Google sign-up could not be completed. Please try again.");
@@ -247,6 +282,12 @@ export default function SignupPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
+        if (typeof window !== "undefined") {
+          if (data.user?.id) localStorage.setItem("cb_user_id", data.user.id);
+          if (data.user?.email) localStorage.setItem("cb_user_email", data.user.email);
+          if (data.user?.role) localStorage.setItem("cb_user_role", data.user.role);
+          if (data.sessionToken) localStorage.setItem("cb_session_token", data.sessionToken);
+        }
         window.location.href = data.redirectUrl || "/";
       } else {
         setError(data.error || "Unable to create account. Please check your information.");

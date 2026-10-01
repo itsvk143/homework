@@ -21,9 +21,13 @@ export default function Home() {
     try {
       const storedId = typeof window !== "undefined" ? localStorage.getItem("cb_user_id") : null;
       const storedEmail = typeof window !== "undefined" ? localStorage.getItem("cb_user_email") : null;
+      const storedRole = typeof window !== "undefined" ? localStorage.getItem("cb_user_role") : null;
+      const storedToken = typeof window !== "undefined" ? localStorage.getItem("cb_session_token") : null;
       const headers: Record<string, string> = {};
       if (storedId) headers["x-user-id"] = storedId;
       if (storedEmail) headers["x-user-email"] = storedEmail;
+      if (storedRole) headers["x-user-role"] = storedRole;
+      if (storedToken) headers["x-session-token"] = storedToken;
 
       const res = await fetch("/api/auth/me", {
         cache: "no-store",
@@ -36,14 +40,11 @@ export default function Home() {
           if (typeof window !== "undefined") {
             if (data.user.id) localStorage.setItem("cb_user_id", data.user.id);
             if (data.user.email) localStorage.setItem("cb_user_email", data.user.email);
+            if (data.user.role) localStorage.setItem("cb_user_role", data.user.role);
+            if (data.sessionToken) localStorage.setItem("cb_session_token", data.sessionToken);
           }
 
-          const needsOnboarding =
-            data.user.role === "PENDING" ||
-            (data.user.role !== "ADMIN" &&
-              data.user.role === "STUDENT" &&
-              data.user.studentProfile?.schoolName === "Online Student" &&
-              data.user.studentProfile?.classGrade === "Class 11 & 12");
+          const needsOnboarding = data.user.role === "PENDING";
 
           if (needsOnboarding) {
             router.replace("/onboarding");

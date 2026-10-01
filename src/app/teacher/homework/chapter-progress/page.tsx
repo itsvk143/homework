@@ -20,7 +20,17 @@ function ChapterProgressContent() {
 
   const fetchSession = async () => {
     try {
-      const res = await fetch("/api/auth/me");
+      const storedId = typeof window !== "undefined" ? localStorage.getItem("cb_user_id") : null;
+      const storedEmail = typeof window !== "undefined" ? localStorage.getItem("cb_user_email") : null;
+      const storedRole = typeof window !== "undefined" ? localStorage.getItem("cb_user_role") : null;
+      const storedToken = typeof window !== "undefined" ? localStorage.getItem("cb_session_token") : null;
+      const headers: Record<string, string> = {};
+      if (storedId) headers["x-user-id"] = storedId;
+      if (storedEmail) headers["x-user-email"] = storedEmail;
+      if (storedRole) headers["x-user-role"] = storedRole;
+      if (storedToken) headers["x-session-token"] = storedToken;
+
+      const res = await fetch("/api/auth/me", { cache: "no-store", headers });
       if (res.ok) {
         const data = await res.json();
         if (!data.user) {
@@ -30,6 +40,12 @@ function ChapterProgressContent() {
         if (data.user.role === "STUDENT") {
           router.replace("/");
           return;
+        }
+        if (typeof window !== "undefined") {
+          if (data.user.id) localStorage.setItem("cb_user_id", data.user.id);
+          if (data.user.email) localStorage.setItem("cb_user_email", data.user.email);
+          if (data.user.role) localStorage.setItem("cb_user_role", data.user.role);
+          if (data.sessionToken) localStorage.setItem("cb_session_token", data.sessionToken);
         }
         setCurrentUser(data.user);
       } else {
