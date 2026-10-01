@@ -37,7 +37,16 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { credential } = body;
+    const {
+      credential,
+      role: requestedRole,
+      classGrade,
+      section,
+      rollNo,
+      schoolName,
+      subjectSpecialty,
+      phone,
+    } = body;
 
     // 2. Validate request
     if (!credential || typeof credential !== "string") {
@@ -163,22 +172,37 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Requirement 8 & 9: Create new user with role STUDENT
+      // Requirement 8 & 9: Create new user with chosen role (TEACHER or STUDENT)
+      const isTeacher = requestedRole === "TEACHER";
       user = await prisma.user.create({
         data: {
           email,
           name,
           avatarUrl,
           google_provider_id: googleSub,
-          role: "STUDENT",
+          role: isTeacher ? "TEACHER" : "STUDENT",
           status: "ACTIVE",
-          studentProfile: {
-            create: {
-              classGrade: "Class 11 & 12",
-              section: "A",
-              schoolName: "Online Student",
-            },
-          },
+          ...(isTeacher
+            ? {
+                teacherProfile: {
+                  create: {
+                    subjectSpecialty:
+                      subjectSpecialty?.trim() || "Mathematics & Science",
+                    phone: phone?.trim() || null,
+                    bio: `Teacher at ${schoolName || "ClassBoard"}`,
+                  },
+                },
+              }
+            : {
+                studentProfile: {
+                  create: {
+                    classGrade: classGrade?.trim() || "Class 8",
+                    section: section?.trim() || "A",
+                    rollNo: rollNo?.trim() || null,
+                    schoolName: schoolName?.trim() || "Delhi Public School",
+                  },
+                },
+              }),
         },
         include: {
           studentProfile: true,

@@ -252,18 +252,18 @@ export default function LoginPage() {
             <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-500">
               <button
                 type="button"
-                onClick={() => setError("Please contact your school administrator to reset password.")}
+                onClick={() => setError("Please contact your school administrator or check your registered email.")}
                 className="hover:text-indigo-600 transition-colors font-medium text-[11px]"
               >
                 Forgot Password?
               </button>
-              <button
-                type="button"
-                onClick={() => setError("To register as a student or teacher, please sign in with Google or contact your administrator.")}
-                className="text-indigo-600 hover:text-indigo-800 font-bold text-[11px]"
+              <Link
+                href="/signup"
+                className="text-indigo-600 hover:text-indigo-800 font-bold text-[11px] flex items-center gap-1"
               >
-                Create Account
-              </button>
+                <span>New User? Create Account</span>
+                <span aria-hidden="true">&rarr;</span>
+              </Link>
             </div>
           </div>
 

@@ -18,6 +18,8 @@ import {
   LogOut,
 } from "lucide-react";
 
+import { EditProfileModal } from "@/components/EditProfileModal";
+
 interface User {
   id: string;
   name: string;
@@ -49,6 +51,7 @@ export function Navbar({
 }: NavbarProps) {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -328,7 +331,18 @@ export function Navbar({
                       )}
                     </div>
 
-                    <div className="pt-2 px-3">
+                    <div className="pt-2 px-3 space-y-1">
+                      <button
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          setIsEditProfileOpen(true);
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                      >
+                        <Settings className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Edit Profile & Role</span>
+                      </button>
+
                       <button
                         onClick={async () => {
                           await fetch("/api/auth/logout", { method: "POST" });
@@ -355,6 +369,15 @@ export function Navbar({
           </div>
         </div>
       </div>
+
+      {/* Edit Profile & Role Modal */}
+      {currentUser && (
+        <EditProfileModal
+          isOpen={isEditProfileOpen}
+          onClose={() => setIsEditProfileOpen(false)}
+          currentUser={currentUser}
+        />
+      )}
     </header>
   );
 }
