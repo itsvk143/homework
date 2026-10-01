@@ -203,38 +203,91 @@ export async function DELETE(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
-    const teacherId = searchParams.get("teacherId");
-    const studentId = searchParams.get("studentId");
-    const subjectId = searchParams.get("subjectId");
+    let id = searchParams.get("id");
+    let ids: string[] = [];
+    let teacherId = searchParams.get("teacherId");
+    let studentId = searchParams.get("studentId");
+    let subjectId = searchParams.get("subjectId");
 
-    if (id) {
-      await prisma.teacherStudentAssignment.delete({
-        where: { id },
-      });
-      return NextResponse.json({ success: true, message: "Assignment removed successfully" });
+    // Also safely inspect JSON body if provided
+    if (req.headers.get("content-type")?.includes("application/json")) {
+      try {
+        const body = await req.json();
+        if (body.id) id = body.id;
+        if (Array.isArray(body.ids)) ids = body.ids;
+        if (body.teacherId) teacherId = body.teacherId;
+        if (body.studentId) studentId = body.studentId;
+        if (body.subjectId) subjectId = body.subjectId;
+      } catch {
+        // query params will be used if body parse fails
+      }
     }
 
+    // 1. Bulk remove by array of IDs
+    if (ids.length > 0) {
+      const result = await prisma.teacherStudentAssignment.deleteMany({
+        where: { id: { in: ids } },
+      });
+      return NextResponse.json({
+        success: true,
+        count: result.count,
+        message: `Removed ${result.count} assignment(s) successfully`,
+      });
+    }
+
+    // 2. Remove single by ID (safe deleteMany prevents crashes if already deleted)
+    if (id) {
+      const result = await prisma.teacherStudentAssignment.deleteMany({
+        where: { id },
+      });
+      return NextResponse.json({
+        success: true,
+        count: result.count,
+        message: "Assignment removed successfully",
+      });
+    }
+
+    // 3. Remove by teacher + student + subject
     if (teacherId && studentId && subjectId) {
-      await prisma.teacherStudentAssignment.deleteMany({
+      const result = await prisma.teacherStudentAssignment.deleteMany({
         where: {
           teacherId,
           studentId,
           subjectId,
         },
       });
-      return NextResponse.json({ success: true, message: "Assignment removed successfully" });
+      return NextResponse.json({
+        success: true,
+        count: result.count,
+        message: "Assignment removed successfully",
+      });
     }
 
+    // 4. Remove all assignments between specific teacher and student
     if (teacherId && studentId) {
-      // Remove all subject assignments between this teacher and student
-      await prisma.teacherStudentAssignment.deleteMany({
+      const result = await prisma.teacherStudentAssignment.deleteMany({
         where: {
           teacherId,
           studentId,
         },
       });
-      return NextResponse.json({ success: true, message: "Assignments removed successfully" });
+      return NextResponse.json({
+        success: true,
+        count: result.count,
+        message: `Removed ${result.count} assignment(s) successfully`,
+      });
+    }
+
+    // 5. Remove all assignments for a teacher
+    if (teacherId) {
+      const result = await prisma.teacherStudentAssignment.deleteMany({
+        where: { teacherId },
+      });
+      return NextResponse.json({
+        success: true,
+        count: result.count,
+        message: `Removed all ${result.count} assignment(s) for teacher`,
+      });
     }
 
     return NextResponse.json(

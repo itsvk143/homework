@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   GraduationCap,
   Plus,
@@ -38,12 +38,14 @@ export function AdminTeacherManagement() {
   const [teacherAssignments, setTeacherAssignments] = useState<any[]>([]);
   const [allStudents, setAllStudents] = useState<any[]>([]);
   const [allSubjects, setAllSubjects] = useState<any[]>([]);
+  const [assignClassGrade, setAssignClassGrade] = useState<string>("ALL");
   const [assignSubjectId, setAssignSubjectId] = useState<string>("");
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [assignSearch, setAssignSearch] = useState<string>("");
   const [assignGradeFilter, setAssignGradeFilter] = useState<string>("ALL");
   const [loadingAssignments, setLoadingAssignments] = useState<boolean>(false);
   const [savingAssignments, setSavingAssignments] = useState<boolean>(false);
+  const [removingAssignmentIds, setRemovingAssignmentIds] = useState<string[]>([]);
 
   // Form States
   const [formData, setFormData] = useState<any>({});
@@ -71,6 +73,56 @@ export function AdminTeacherManagement() {
     }
   };
 
+  // Derive all distinct classes from subjects and students
+  const availableClasses = useMemo(() => {
+    const classSet = new Set<string>();
+    allSubjects.forEach((s) => {
+      if (s.classGrade && s.classGrade.trim()) classSet.add(s.classGrade.trim());
+    });
+    allStudents.forEach((st) => {
+      if (st.studentProfile?.classGrade && st.studentProfile.classGrade.trim()) {
+        classSet.add(st.studentProfile.classGrade.trim());
+      }
+    });
+
+    if (classSet.size === 0) {
+      return ["Class 6", "Class 7", "Class 8", "Class 9", "Class 10", "Class 11", "Class 12"];
+    }
+
+    return Array.from(classSet).sort((a, b) => {
+      const numA = parseInt(a.replace(/\D/g, "")) || 0;
+      const numB = parseInt(b.replace(/\D/g, "")) || 0;
+      if (numA !== numB) return numA - numB;
+      return a.localeCompare(b);
+    });
+  }, [allSubjects, allStudents]);
+
+  // Filter subjects based on selected Class in Step 1
+  const filteredSubjectsForAssign = useMemo(() => {
+    if (!assignClassGrade || assignClassGrade === "ALL") {
+      return allSubjects;
+    }
+    const filtered = allSubjects.filter(
+      (sub) => sub.classGrade === assignClassGrade || !sub.classGrade
+    );
+    return filtered.length > 0 ? filtered : allSubjects;
+  }, [allSubjects, assignClassGrade]);
+
+  const handleClassGradeChange = (newGrade: string) => {
+    setAssignClassGrade(newGrade);
+    // Synchronize Step 2 student filter so the relevant class is immediately shown
+    if (newGrade !== "ALL") {
+      setAssignGradeFilter(newGrade);
+    }
+    const matching =
+      newGrade === "ALL"
+        ? allSubjects
+        : allSubjects.filter((s) => s.classGrade === newGrade || !s.classGrade);
+    if (matching.length > 0) {
+      setAssignSubjectId(matching[0].id);
+    }
+  };
+
   const fetchAssignments = async (teacherId: string) => {
     try {
       setLoadingAssignments(true);
@@ -93,7 +145,7 @@ export function AdminTeacherManagement() {
         const activeSubs = subData.subjects || [];
         setAllSubjects(activeSubs);
         if (activeSubs.length > 0) {
-          setAssignSubjectId(activeSubs[0].id);
+          setAssignSubjectId((prev) => prev || activeSubs[0].id);
         }
       }
     } catch (err) {
@@ -107,6 +159,10 @@ export function AdminTeacherManagement() {
     setAssigningTeacher(teacher);
     setSelectedStudentIds([]);
     setAssignSearch("");
+    setRemovingAssignmentIds([]);
+
+    // Extract specialty to find preferred class if applicable
+    setAssignClassGrade("ALL");
     setAssignGradeFilter("ALL");
     fetchAssignments(teacher.id);
   };
@@ -145,23 +201,69 @@ export function AdminTeacherManagement() {
     }
   };
 
+  // Safe and instant removal of an assigned student
   const handleRemoveAssignment = async (assignmentId: string) => {
+    if (!assignmentId) return;
+
+    // 1. Optimistic removal: instantly removes from UI so there is zero delay!
+    const previousAssignments = [...teacherAssignments];
+    setTeacherAssignments((prev) => prev.filter((a) => a.id !== assignmentId));
+    setRemovingAssignmentIds((prev) => [...prev, assignmentId]);
+
     try {
       const res = await fetch(`/api/admin/teacher-student-assignments?id=${assignmentId}`, {
         method: "DELETE",
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        showNotification("success", "Student assignment removed successfully.");
-        if (assigningTeacher) {
-          await fetchAssignments(assigningTeacher.id);
-        }
-        await fetchTeachers();
+        showNotification("success", "Student removed successfully from faculty.");
+        // Refresh background teachers count
+        fetchTeachers();
       } else {
+        // Rollback state if server returns error
+        setTeacherAssignments(previousAssignments);
         showNotification("error", data.error || "Failed to remove assignment.");
       }
     } catch (err) {
-      showNotification("error", "Error removing assignment.");
+      setTeacherAssignments(previousAssignments);
+      showNotification("error", "Error removing assignment. Please try again.");
+    } finally {
+      setRemovingAssignmentIds((prev) => prev.filter((id) => id !== assignmentId));
+    }
+  };
+
+  // Bulk remove all assigned students from this teacher
+  const handleRemoveAllAssignments = async () => {
+    if (!assigningTeacher || teacherAssignments.length === 0) return;
+    const count = teacherAssignments.length;
+    if (!confirm(`Are you sure you want to remove all ${count} assigned student(s) from ${assigningTeacher.name}?`)) {
+      return;
+    }
+
+    const previousAssignments = [...teacherAssignments];
+    const allIds = teacherAssignments.map((a) => a.id);
+    setTeacherAssignments([]);
+    setRemovingAssignmentIds(allIds);
+
+    try {
+      const res = await fetch("/api/admin/teacher-student-assignments", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teacherId: assigningTeacher.id, ids: allIds }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showNotification("success", `Removed all ${count} student assignments from ${assigningTeacher.name}.`);
+        fetchTeachers();
+      } else {
+        setTeacherAssignments(previousAssignments);
+        showNotification("error", data.error || "Failed to remove assignments.");
+      }
+    } catch {
+      setTeacherAssignments(previousAssignments);
+      showNotification("error", "Error removing assignments.");
+    } finally {
+      setRemovingAssignmentIds([]);
     }
   };
 
@@ -920,38 +1022,83 @@ export function AdminTeacherManagement() {
 
             {/* Body */}
             <div className="p-6 overflow-y-auto space-y-5 text-xs">
-              {/* Step 1: Select Subject */}
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+              {/* Step 1: Select Class then Select Subject */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
                     <BookOpen className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Step 1: Select Subject to Assign</span>
+                    <span>Step 1: Select Class & Subject to Assign</span>
                   </label>
                   <span className="text-[10px] text-slate-400">
-                    Students will be managed for this subject
+                    Choose class first, then select subject
                   </span>
                 </div>
-                <select
-                  value={assignSubjectId}
-                  onChange={(e) => setAssignSubjectId(e.target.value)}
-                  className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-hidden focus:border-blue-500 text-xs shadow-2xs"
-                >
-                  {allSubjects.map((sub) => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.name} ({sub.classGrade || "All Grades"})
-                    </option>
-                  ))}
-                </select>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Select Class */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                      1. Select Class / Grade
+                    </label>
+                    <select
+                      value={assignClassGrade}
+                      onChange={(e) => handleClassGradeChange(e.target.value)}
+                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-hidden focus:border-blue-500 text-xs shadow-2xs"
+                    >
+                      <option value="ALL">All Classes / Grades</option>
+                      {availableClasses.map((cls) => (
+                        <option key={cls} value={cls}>
+                          {cls}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Select Subject */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                      2. Select Subject
+                    </label>
+                    <select
+                      value={assignSubjectId}
+                      onChange={(e) => setAssignSubjectId(e.target.value)}
+                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-hidden focus:border-blue-500 text-xs shadow-2xs"
+                    >
+                      {filteredSubjectsForAssign.length === 0 ? (
+                        <option value="">No subjects found for this class</option>
+                      ) : (
+                        filteredSubjectsForAssign.map((sub) => (
+                          <option key={sub.id} value={sub.id}>
+                            {sub.name} {sub.classGrade ? `(${sub.classGrade})` : ""}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+                </div>
               </div>
 
               {/* Step 2: Currently Assigned Students */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Currently Assigned Students ({teacherAssignments.length})</span>
-                  </label>
-                  {loadingAssignments && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
+                  <div className="flex items-center gap-2">
+                    <label className="font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Currently Assigned Students ({teacherAssignments.length})</span>
+                    </label>
+                    {loadingAssignments && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
+                  </div>
+
+                  {teacherAssignments.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveAllAssignments}
+                      className="text-[10px] font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Remove All ({teacherAssignments.length})</span>
+                    </button>
+                  )}
                 </div>
 
                 {teacherAssignments.length === 0 ? (
@@ -959,27 +1106,48 @@ export function AdminTeacherManagement() {
                     No students currently assigned to this faculty member.
                   </div>
                 ) : (
-                  <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-2 bg-slate-50/70 rounded-2xl border border-slate-200">
-                    {teacherAssignments.map((assignment) => (
-                      <div
-                        key={assignment.id}
-                        className="flex items-center gap-2 pl-2.5 pr-1.5 py-1 bg-white rounded-xl border border-slate-200 shadow-2xs text-xs"
-                      >
-                        <span className="font-bold text-slate-800">
-                          {assignment.student?.name}
-                        </span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold border border-blue-100">
-                          {assignment.subject?.name}
-                        </span>
-                        <button
-                          onClick={() => handleRemoveAssignment(assignment.id)}
-                          title="Remove assignment"
-                          className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                  <div className="flex flex-wrap gap-2 max-h-44 overflow-y-auto p-2.5 bg-slate-50/70 rounded-2xl border border-slate-200">
+                    {teacherAssignments.map((assignment) => {
+                      const isRemoving = removingAssignmentIds.includes(assignment.id);
+                      return (
+                        <div
+                          key={assignment.id}
+                          className={`flex items-center gap-2 pl-3 pr-1.5 py-1.5 bg-white rounded-xl border border-slate-200 shadow-2xs text-xs transition-all ${
+                            isRemoving ? "opacity-40 pointer-events-none" : "hover:border-slate-300"
+                          }`}
                         >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
+                          <span className="font-bold text-slate-800">
+                            {assignment.student?.name}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold border border-blue-100">
+                            {assignment.subject?.name}
+                          </span>
+                          {assignment.student?.studentProfile?.classGrade && (
+                            <span className="text-[10px] text-slate-400 font-semibold">
+                              {assignment.student.studentProfile.classGrade}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            disabled={isRemoving}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleRemoveAssignment(assignment.id);
+                            }}
+                            title="Remove student assignment"
+                            aria-label={`Remove assignment for ${assignment.student?.name}`}
+                            className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer flex items-center justify-center"
+                          >
+                            {isRemoving ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-500" />
+                            ) : (
+                              <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

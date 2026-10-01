@@ -42,6 +42,7 @@ export function AdminStudentManagement() {
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>("");
   const [loadingAssignments, setLoadingAssignments] = useState<boolean>(false);
   const [savingAssignment, setSavingAssignment] = useState<boolean>(false);
+  const [removingAssignmentIds, setRemovingAssignmentIds] = useState<string[]>([]);
 
   // Form States
   const [formData, setFormData] = useState<any>({});
@@ -143,6 +144,12 @@ export function AdminStudentManagement() {
   };
 
   const handleRemoveStudentAssignment = async (assignmentId: string) => {
+    if (!assignmentId) return;
+
+    const previousAssignments = [...studentAssignments];
+    setStudentAssignments((prev) => prev.filter((a) => a.id !== assignmentId));
+    setRemovingAssignmentIds((prev) => [...prev, assignmentId]);
+
     try {
       const res = await fetch(`/api/admin/teacher-student-assignments?id=${assignmentId}`, {
         method: "DELETE",
@@ -150,15 +157,16 @@ export function AdminStudentManagement() {
       const data = await res.json();
       if (res.ok && data.success) {
         showNotification("success", "Faculty assignment removed.");
-        if (assigningStudent) {
-          await fetchStudentAssignments(assigningStudent.id);
-        }
-        await fetchStudents();
+        fetchStudents();
       } else {
+        setStudentAssignments(previousAssignments);
         showNotification("error", data.error || "Failed to remove assignment.");
       }
     } catch (err) {
+      setStudentAssignments(previousAssignments);
       showNotification("error", "Error removing assignment.");
+    } finally {
+      setRemovingAssignmentIds((prev) => prev.filter((id) => id !== assignmentId));
     }
   };
 
@@ -1010,11 +1018,22 @@ export function AdminStudentManagement() {
                             {assignment.subject?.name}
                           </span>
                           <button
-                            onClick={() => handleRemoveStudentAssignment(assignment.id)}
-                            title="Remove assignment"
-                            className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            type="button"
+                            disabled={removingAssignmentIds.includes(assignment.id)}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleRemoveStudentAssignment(assignment.id);
+                            }}
+                            title="Remove faculty assignment"
+                            aria-label={`Remove assignment for ${assignment.teacher?.name}`}
+                            className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer flex items-center justify-center"
                           >
-                            <X className="w-3.5 h-3.5" />
+                            {removingAssignmentIds.includes(assignment.id) ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-500" />
+                            ) : (
+                              <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                            )}
                           </button>
                         </div>
                       </div>
