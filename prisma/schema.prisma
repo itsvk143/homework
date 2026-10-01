@@ -28,6 +28,9 @@ model User {
   studentAssignments     HomeworkAssignment[] @relation("StudentHomework")
   teacherAssignments     HomeworkAssignment[] @relation("TeacherHomework")
   
+  assignedStudentsAsTeacher TeacherStudentAssignment[] @relation("TeacherToStudents")
+  assignedTeachersAsStudent TeacherStudentAssignment[] @relation("StudentToTeachers")
+  
   progressHistory        HomeworkProgressHistory[]
   notifications          Notification[]
   auditLogs              AuditLog[]
@@ -72,6 +75,7 @@ model Subject {
 
   books       Book[]
   homeworks   HomeworkAssignment[]
+  teacherStudentAssignments TeacherStudentAssignment[]
 }
 
 model Book {
@@ -267,3 +271,20 @@ model AuditLog {
   metadata   String?  // JSON string
   timestamp  DateTime @default(now())
 }
+
+model TeacherStudentAssignment {
+  id           String   @id @default(cuid())
+  teacherId    String
+  teacher      User     @relation("TeacherToStudents", fields: [teacherId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      User     @relation("StudentToTeachers", fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId    String
+  subject      Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  academicYear String   @default("2026-2027")
+  status       String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([teacherId, studentId, subjectId])
+}
+

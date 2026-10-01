@@ -18,6 +18,7 @@ import {
   Sparkles,
   GraduationCap,
   Users,
+  UserCheck,
 } from "lucide-react";
 
 export function AdminStudentManagement() {
@@ -31,6 +32,16 @@ export function AdminStudentManagement() {
   const [editingStudent, setEditingStudent] = useState<any>(null);
   const [convertingStudent, setConvertingStudent] = useState<any>(null);
   const [deletingStudent, setDeletingStudent] = useState<any>(null);
+
+  // Assignment Modal State
+  const [assigningStudent, setAssigningStudent] = useState<any>(null);
+  const [studentAssignments, setStudentAssignments] = useState<any[]>([]);
+  const [allTeachers, setAllTeachers] = useState<any[]>([]);
+  const [allSubjects, setAllSubjects] = useState<any[]>([]);
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string>("");
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>("");
+  const [loadingAssignments, setLoadingAssignments] = useState<boolean>(false);
+  const [savingAssignment, setSavingAssignment] = useState<boolean>(false);
 
   // Form States
   const [formData, setFormData] = useState<any>({});
@@ -54,6 +65,100 @@ export function AdminStudentManagement() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStudentAssignments = async (studentId: string) => {
+    try {
+      setLoadingAssignments(true);
+      const [assignRes, teachRes, subRes] = await Promise.all([
+        fetch(`/api/admin/teacher-student-assignments?studentId=${studentId}`),
+        fetch("/api/teachers"),
+        fetch("/api/subjects"),
+      ]);
+
+      if (assignRes.ok) {
+        const aData = await assignRes.json();
+        setStudentAssignments(aData.assignments || []);
+      }
+      if (teachRes.ok) {
+        const tData = await teachRes.json();
+        const activeTeachers = tData.teachers || [];
+        setAllTeachers(activeTeachers);
+        if (activeTeachers.length > 0) {
+          setSelectedTeacherId(activeTeachers[0].id);
+        }
+      }
+      if (subRes.ok) {
+        const sData = await subRes.json();
+        const activeSubs = sData.subjects || [];
+        setAllSubjects(activeSubs);
+        if (activeSubs.length > 0) {
+          setSelectedSubjectId(activeSubs[0].id);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading student assignments:", err);
+    } finally {
+      setLoadingAssignments(false);
+    }
+  };
+
+  const handleOpenAssignModal = (student: any) => {
+    setAssigningStudent(student);
+    fetchStudentAssignments(student.id);
+  };
+
+  const handleSaveStudentAssignment = async () => {
+    if (!assigningStudent || !selectedTeacherId || !selectedSubjectId) {
+      showNotification("error", "Please select both a faculty member and a subject.");
+      return;
+    }
+
+    try {
+      setSavingAssignment(true);
+      const res = await fetch("/api/admin/teacher-student-assignments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teacherId: selectedTeacherId,
+          studentId: assigningStudent.id,
+          subjectId: selectedSubjectId,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showNotification("success", data.message || "Faculty assigned successfully!");
+        await fetchStudentAssignments(assigningStudent.id);
+        await fetchStudents();
+      } else {
+        showNotification("error", data.error || "Failed to assign faculty.");
+      }
+    } catch (err) {
+      showNotification("error", "Error assigning faculty.");
+    } finally {
+      setSavingAssignment(false);
+    }
+  };
+
+  const handleRemoveStudentAssignment = async (assignmentId: string) => {
+    try {
+      const res = await fetch(`/api/admin/teacher-student-assignments?id=${assignmentId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showNotification("success", "Faculty assignment removed.");
+        if (assigningStudent) {
+          await fetchStudentAssignments(assigningStudent.id);
+        }
+        await fetchStudents();
+      } else {
+        showNotification("error", data.error || "Failed to remove assignment.");
+      }
+    } catch (err) {
+      showNotification("error", "Error removing assignment.");
     }
   };
 
@@ -324,7 +429,7 @@ export function AdminStudentManagement() {
                   <th className="py-3 px-4">Student Profile</th>
                   <th className="py-3 px-4">Class & Section</th>
                   <th className="py-3 px-4">Roll Number</th>
-                  <th className="py-3 px-4">School / Institute</th>
+                  <th className="py-3 px-4">Assigned Faculty</th>
                   <th className="py-3 px-4">Homework Tasks</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Actions</th>
@@ -366,11 +471,27 @@ export function AdminStudentManagement() {
                       {student.studentProfile?.rollNo || "--"}
                     </td>
 
-                    {/* School */}
-                    <td className="py-3.5 px-4 text-slate-600">
-                      <div className="truncate max-w-[160px]" title={student.studentProfile?.schoolName}>
-                        {student.studentProfile?.schoolName || "Delhi Public School"}
+                    {/* Assigned Faculty */}
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                        <GraduationCap className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>{student.assignedTeachersAsStudent?.length || 0} Faculty</span>
                       </div>
+                      {student.assignedTeachersAsStudent?.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 mt-1 max-w-[200px]">
+                          {student.assignedTeachersAsStudent.map((a: any) => (
+                            <span
+                              key={a.id}
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 truncate max-w-[190px]"
+                              title={`${a.teacher?.name} (${a.subject?.name})`}
+                            >
+                              {a.teacher?.name?.split(" ")[0]} ({a.subject?.name})
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-400">None assigned</span>
+                      )}
                     </td>
 
                     {/* Homework Tasks */}
@@ -399,6 +520,15 @@ export function AdminStudentManagement() {
                     {/* Actions */}
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {/* Assign Faculty Button */}
+                        <button
+                          onClick={() => handleOpenAssignModal(student)}
+                          title="Assign Faculty & Subject"
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 font-bold text-[11px] transition-colors cursor-pointer border border-indigo-200 shadow-2xs"
+                        >
+                          <GraduationCap className="w-3.5 h-3.5" />
+                          <span>Assign Faculty</span>
+                        </button>
                         {/* Edit Student */}
                         <button
                           onClick={() => {
@@ -806,6 +936,158 @@ export function AdminStudentManagement() {
               >
                 {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                 <span>Delete Student</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: ASSIGN FACULTY TO STUDENT */}
+      {assigningStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95">
+            {/* Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-emerald-50/60 to-indigo-50/60 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white font-black flex items-center justify-center shadow-xs">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">
+                    Assign Faculty to Student
+                  </h3>
+                  <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
+                    <span className="font-semibold text-slate-800">{assigningStudent.name}</span>
+                    <span>•</span>
+                    <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-semibold text-[10px] border border-emerald-200">
+                      {assigningStudent.studentProfile?.classGrade} - {assigningStudent.studentProfile?.section || "A"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setAssigningStudent(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 overflow-y-auto space-y-5 text-xs">
+              {/* Existing Faculty Assignments */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Current Faculty ({studentAssignments.length})</span>
+                  </label>
+                  {loadingAssignments && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
+                </div>
+
+                {studentAssignments.length === 0 ? (
+                  <div className="p-4 rounded-xl border border-dashed border-slate-200 text-center text-slate-400">
+                    No faculty currently assigned to this student.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-40 overflow-y-auto p-1">
+                    {studentAssignments.map((assignment) => (
+                      <div
+                        key={assignment.id}
+                        className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-200"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs">
+                            {assignment.teacher?.name?.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="font-bold text-slate-900">{assignment.teacher?.name}</div>
+                            <div className="text-[10px] text-slate-500">{assignment.teacher?.email}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            {assignment.subject?.name}
+                          </span>
+                          <button
+                            onClick={() => handleRemoveStudentAssignment(assignment.id)}
+                            title="Remove assignment"
+                            className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Add New Faculty Assignment */}
+              <div className="p-4 bg-indigo-50/40 rounded-2xl border border-indigo-100 space-y-3 pt-3">
+                <label className="font-bold text-indigo-950 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                  <Plus className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Assign Another Faculty Member</span>
+                </label>
+
+                {/* Faculty Selector */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-600">Select Faculty / Teacher</label>
+                  <select
+                    value={selectedTeacherId}
+                    onChange={(e) => setSelectedTeacherId(e.target.value)}
+                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-800 outline-hidden focus:border-indigo-500 text-xs shadow-2xs"
+                  >
+                    {allTeachers.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.teacherProfile?.subjectSpecialty || "General Faculty"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Subject Selector */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-600">Select Subject</label>
+                  <select
+                    value={selectedSubjectId}
+                    onChange={(e) => setSelectedSubjectId(e.target.value)}
+                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-800 outline-hidden focus:border-indigo-500 text-xs shadow-2xs"
+                  >
+                    {allSubjects.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.classGrade || "All Grades"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSaveStudentAssignment}
+                    disabled={savingAssignment || !selectedTeacherId || !selectedSubjectId}
+                    className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-xs disabled:opacity-50 transition-all cursor-pointer"
+                  >
+                    {savingAssignment ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <UserCheck className="w-3.5 h-3.5" />
+                    )}
+                    <span>Assign Selected Faculty</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setAssigningStudent(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Close
               </button>
             </div>
           </div>

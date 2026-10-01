@@ -11,6 +11,7 @@ async function main() {
   await prisma.homeworkAttachment.deleteMany();
   await prisma.homeworkSubmission.deleteMany();
   await prisma.homeworkProgressHistory.deleteMany();
+  await prisma.teacherStudentAssignment.deleteMany();
   await prisma.homeworkAssignment.deleteMany();
   await prisma.studentBook.deleteMany();
   await prisma.exercise.deleteMany();
@@ -668,6 +669,29 @@ async function main() {
       completedAt: oneDayAgo,
       lastProgressUpdate: oneDayAgo,
     },
+  });
+
+  // Teacher-Student Subject Assignments
+  await prisma.teacherStudentAssignment.createMany({
+    data: [
+      // Mrs. Sunita Sharma (Teacher 1) - Mathematics
+      { teacherId: teacher1.id, studentId: rahul.id, subjectId: mathSubject.id, academicYear: "2026-2027", status: "ACTIVE" },
+      { teacherId: teacher1.id, studentId: priya.id, subjectId: mathSubject.id, academicYear: "2026-2027", status: "ACTIVE" },
+      { teacherId: teacher1.id, studentId: aman.id, subjectId: mathSubject.id, academicYear: "2026-2027", status: "ACTIVE" },
+      { teacherId: teacher1.id, studentId: ananya.id, subjectId: mathSubject.id, academicYear: "2026-2027", status: "ACTIVE" },
+      { teacherId: teacher1.id, studentId: rohit.id, subjectId: mathSubject.id, academicYear: "2026-2027", status: "ACTIVE" },
+      // Mrs. Sunita Sharma (Teacher 1) - Science
+      { teacherId: teacher1.id, studentId: rahul.id, subjectId: scienceSubject.id, academicYear: "2026-2027", status: "ACTIVE" },
+      { teacherId: teacher1.id, studentId: priya.id, subjectId: scienceSubject.id, academicYear: "2026-2027", status: "ACTIVE" },
+      
+      // Mr. R.K. Verma (Teacher 2) - Science (Rahul is assigned to both teachers for different or complementary roles!)
+      { teacherId: teacher2.id, studentId: rahul.id, subjectId: scienceSubject.id, academicYear: "2026-2027", status: "ACTIVE" },
+      { teacherId: teacher2.id, studentId: aman.id, subjectId: scienceSubject.id, academicYear: "2026-2027", status: "ACTIVE" },
+      { teacherId: teacher2.id, studentId: rohit.id, subjectId: scienceSubject.id, academicYear: "2026-2027", status: "ACTIVE" },
+      // Mr. R.K. Verma (Teacher 2) - English
+      { teacherId: teacher2.id, studentId: priya.id, subjectId: englishSubject.id, academicYear: "2026-2027", status: "ACTIVE" },
+      { teacherId: teacher2.id, studentId: ananya.id, subjectId: englishSubject.id, academicYear: "2026-2027", status: "ACTIVE" },
+    ],
   });
 
   // Notifications

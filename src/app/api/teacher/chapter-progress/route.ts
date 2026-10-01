@@ -126,10 +126,41 @@ export async function GET(req: NextRequest) {
     const exerciseIds = chapterExercises.map((e) => e.id);
 
     // 3. Optimized Student Fetching (Avoid N+1 Queries)
+    const teacherIdFilter = user.role === "TEACHER" ? user.id : (searchParams.get("teacherId") || null);
+
+    // Map student ID to their assignments in this chapter
+    const studentAssignmentsMap = new Map<string, any[]>();
+    const studentUserMap = new Map<string, any>();
+
+    // If teacher filter applies, fetch all students assigned to this teacher for this subject
+    let assignedStudentIds: string[] | null = null;
+    if (teacherIdFilter) {
+      const assignments = await prisma.teacherStudentAssignment.findMany({
+        where: {
+          teacherId: teacherIdFilter,
+          subjectId: selectedBook.subjectId,
+          status: "ACTIVE",
+        },
+        include: {
+          student: {
+            include: {
+              studentProfile: true,
+            },
+          },
+        },
+      });
+      assignedStudentIds = assignments.map((a) => a.studentId);
+      for (const a of assignments) {
+        studentUserMap.set(a.studentId, a.student);
+        studentAssignmentsMap.set(a.studentId, []);
+      }
+    }
+
     // Find all students who have homework in this chapter
     const homeworkInChapter = await prisma.homeworkAssignment.findMany({
       where: {
         chapterId: selectedChapter.id,
+        ...(assignedStudentIds !== null ? { studentId: { in: assignedStudentIds } } : {}),
       },
       include: {
         student: {
@@ -148,10 +179,6 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Map student ID to their assignments in this chapter
-    const studentAssignmentsMap = new Map<string, typeof homeworkInChapter>();
-    const studentUserMap = new Map<string, any>();
-
     for (const hw of homeworkInChapter) {
       if (!studentAssignmentsMap.has(hw.studentId)) {
         studentAssignmentsMap.set(hw.studentId, []);
@@ -165,7 +192,10 @@ export async function GET(req: NextRequest) {
     // If includeAllBookStudents is requested (Section 145), also fetch students who have this book assigned
     if (includeAllBookStudents) {
       const bookStudents = await prisma.studentBook.findMany({
-        where: { bookId: selectedBook.id },
+        where: {
+          bookId: selectedBook.id,
+          ...(assignedStudentIds !== null ? { studentId: { in: assignedStudentIds } } : {}),
+        },
         include: {
           student: {
             include: {

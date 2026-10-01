@@ -8,22 +8,44 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search")?.toLowerCase();
+    const teacherId = searchParams.get("teacherId");
+    const subjectId = searchParams.get("subjectId");
+
+    const whereClause: any = {
+      role: "STUDENT",
+    };
+
+    if (search) {
+      whereClause.OR = [
+        { name: { contains: search } },
+        { email: { contains: search } },
+        { studentProfile: { classGrade: { contains: search } } },
+      ];
+    }
+
+    if (teacherId) {
+      whereClause.assignedTeachersAsStudent = {
+        some: {
+          teacherId,
+          status: "ACTIVE",
+          ...(subjectId ? { subjectId } : {}),
+        },
+      };
+    }
 
     const students = await prisma.user.findMany({
-      where: {
-        role: "STUDENT",
-        ...(search
-          ? {
-              OR: [
-                { name: { contains: search } },
-                { email: { contains: search } },
-                { studentProfile: { classGrade: { contains: search } } },
-              ],
-            }
-          : {}),
-      },
+      where: whereClause,
       include: {
         studentProfile: true,
+        assignedTeachersAsStudent: {
+          where: { status: "ACTIVE" },
+          include: {
+            teacher: {
+              include: { teacherProfile: true },
+            },
+            subject: true,
+          },
+        },
         assignedBooksAsStudent: {
           include: {
             book: {
@@ -34,6 +56,7 @@ export async function GET(req: NextRequest) {
         _count: {
           select: {
             studentAssignments: true,
+            assignedTeachersAsStudent: true,
           },
         },
       },
@@ -175,6 +198,7 @@ export async function PUT(req: NextRequest) {
       });
       await prisma.studentBook.deleteMany({ where: { studentId: id } });
       await prisma.homeworkAssignment.deleteMany({ where: { studentId: id } });
+      await prisma.teacherStudentAssignment.deleteMany({ where: { studentId: id } });
       await prisma.studentProfile.deleteMany({ where: { userId: id } });
 
       // 2. Update user to TEACHER
@@ -294,6 +318,7 @@ export async function DELETE(req: NextRequest) {
     });
     await prisma.studentBook.deleteMany({ where: { studentId: id } });
     await prisma.homeworkAssignment.deleteMany({ where: { studentId: id } });
+    await prisma.teacherStudentAssignment.deleteMany({ where: { studentId: id } });
     await prisma.studentProfile.deleteMany({ where: { userId: id } });
     await prisma.notification.deleteMany({ where: { userId: id } });
     await prisma.auditLog.deleteMany({ where: { entityId: id } });

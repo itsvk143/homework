@@ -12,10 +12,20 @@ export async function GET() {
       },
       include: {
         teacherProfile: true,
+        assignedStudentsAsTeacher: {
+          where: { status: "ACTIVE" },
+          include: {
+            student: {
+              include: { studentProfile: true },
+            },
+            subject: true,
+          },
+        },
         _count: {
           select: {
             teacherAssignments: true,
             assignedBooksAsTeacher: true,
+            assignedStudentsAsTeacher: true,
           },
         },
       },
@@ -156,6 +166,7 @@ export async function PUT(req: NextRequest) {
         where: { homeworkAssignment: { teacherId: id } },
       });
       await prisma.homeworkAssignment.deleteMany({ where: { teacherId: id } });
+      await prisma.teacherStudentAssignment.deleteMany({ where: { teacherId: id } });
       await prisma.teacherProfile.deleteMany({ where: { userId: id } });
 
       // 2. Update user to STUDENT
@@ -271,9 +282,10 @@ export async function DELETE(req: NextRequest) {
     // Clean up all foreign keys safely
     await prisma.studentBook.deleteMany({ where: { assignedByTeacherId: id } });
     await prisma.homeworkProgressHistory.deleteMany({
-      where: { homeworkAssignment: { teacherId: id } },
+        where: { homeworkAssignment: { teacherId: id } },
     });
     await prisma.homeworkAssignment.deleteMany({ where: { teacherId: id } });
+    await prisma.teacherStudentAssignment.deleteMany({ where: { teacherId: id } });
     await prisma.teacherProfile.deleteMany({ where: { userId: id } });
     await prisma.notification.deleteMany({ where: { userId: id } });
     await prisma.auditLog.deleteMany({ where: { entityId: id } });

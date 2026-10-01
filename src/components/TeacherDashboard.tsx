@@ -64,9 +64,10 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
   const fetchData = async () => {
     setLoading(true);
     try {
+      const teacherParam = currentUser?.role === "TEACHER" ? `?teacherId=${currentUser.id}` : "";
       const [stuRes, hwRes, hierRes] = await Promise.all([
-        fetch("/api/students"),
-        fetch("/api/homework"),
+        fetch(`/api/students${teacherParam}`),
+        fetch(`/api/homework${teacherParam}`),
         fetch("/api/academic/hierarchy"),
       ]);
 
@@ -93,33 +94,79 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
     fetchData();
   }, []);
 
-  // Set default subject and book for wizard once hierarchy loads
+  // Determine subjects assigned to this teacher or matching specialty
+  const teacherAuthorizedSubjects = React.useMemo(() => {
+    if (!currentUser || currentUser.role !== "TEACHER") return hierarchy;
+
+    // Collect subjects from assigned students
+    const subjectIdSet = new Set<string>();
+    const specialty = (currentUser.teacherProfile?.subjectSpecialty || "").toLowerCase();
+
+    students.forEach((stu) => {
+      stu.assignedTeachersAsStudent?.forEach((a: any) => {
+        if (a.teacherId === currentUser.id && a.subjectId) {
+          subjectIdSet.add(a.subjectId);
+        }
+      });
+    });
+
+    // Also match by subject name against specialty string (e.g. "Mathematics & Science")
+    hierarchy.forEach((sub) => {
+      if (specialty && specialty.includes(sub.name.toLowerCase())) {
+        subjectIdSet.add(sub.id);
+      }
+    });
+
+    // If teacher has assigned subjects, filter hierarchy to those
+    if (subjectIdSet.size > 0) {
+      const filtered = hierarchy.filter((s) => subjectIdSet.has(s.id));
+      if (filtered.length > 0) return filtered;
+    }
+
+    return hierarchy;
+  }, [currentUser, hierarchy, students]);
+
+  // Set default subject and book for wizard once teacherAuthorizedSubjects loads
   useEffect(() => {
-    if (hierarchy.length > 0 && !wizardSubjectId) {
-      const firstSub = hierarchy[0];
-      setWizardSubjectId(firstSub.id);
-      if (firstSub.books?.length > 0) {
-        const firstBook = firstSub.books[0];
-        setWizardBookId(firstBook.id);
-        if (firstBook.chapters?.length > 0) {
-          const firstChap = firstBook.chapters[0];
-          setWizardChapterId(firstChap.id);
-          if (firstChap.exercises?.length > 0) {
-            setWizardExerciseId(firstChap.exercises[0].id);
+    if (teacherAuthorizedSubjects.length > 0) {
+      const isValidCurrent = teacherAuthorizedSubjects.some((s) => s.id === wizardSubjectId);
+      if (!wizardSubjectId || !isValidCurrent) {
+        const firstSub = teacherAuthorizedSubjects[0];
+        setWizardSubjectId(firstSub.id);
+        if (firstSub.books?.length > 0) {
+          const firstBook = firstSub.books[0];
+          setWizardBookId(firstBook.id);
+          if (firstBook.chapters?.length > 0) {
+            const firstChap = firstBook.chapters[0];
+            setWizardChapterId(firstChap.id);
+            if (firstChap.exercises?.length > 0) {
+              setWizardExerciseId(firstChap.exercises[0].id);
+            }
           }
         }
       }
     }
-  }, [hierarchy]);
+  }, [teacherAuthorizedSubjects]);
 
   // Dynamic filter helpers for wizard
-  const currentSubjectObj = hierarchy.find((s) => s.id === wizardSubjectId);
+  const currentSubjectObj = teacherAuthorizedSubjects.find((s) => s.id === wizardSubjectId) || hierarchy.find((s) => s.id === wizardSubjectId);
   const availableBooks = currentSubjectObj?.books || [];
   const currentBookObj = availableBooks.find((b: any) => b.id === wizardBookId);
   const availableChapters = currentBookObj?.chapters || [];
   const currentChapterObj = availableChapters.find((c: any) => c.id === wizardChapterId);
   const availableExercises = currentChapterObj?.exercises || [];
   const selectedExerciseObj = availableExercises.find((e: any) => e.id === wizardExerciseId);
+
+  // Eligible students for the currently selected subject in the wizard
+  const studentsForSelectedSubject = React.useMemo(() => {
+    if (!currentUser || currentUser.role !== "TEACHER") return students;
+    const subjectSpecific = students.filter((stu) =>
+      stu.assignedTeachersAsStudent?.some(
+        (a: any) => a.teacherId === currentUser.id && a.subjectId === wizardSubjectId
+      )
+    );
+    return subjectSpecific.length > 0 ? subjectSpecific : students;
+  }, [currentUser, students, wizardSubjectId]);
 
   // Derived Teacher Metrics
   const now = new Date();
@@ -585,25 +632,25 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Step 1: Select Students ({selectedStudentIds.length} selected)
+                Step 1: Select Students ({selectedStudentIds.length} selected of {studentsForSelectedSubject.length} eligible)
               </label>
               <button
                 type="button"
                 onClick={() => {
-                  if (selectedStudentIds.length === students.length) {
+                  if (selectedStudentIds.length === studentsForSelectedSubject.length) {
                     setSelectedStudentIds([]);
                   } else {
-                    setSelectedStudentIds(students.map((s) => s.id));
+                    setSelectedStudentIds(studentsForSelectedSubject.map((s) => s.id));
                   }
                 }}
                 className="text-xs text-indigo-600 font-semibold hover:text-indigo-800"
               >
-                {selectedStudentIds.length === students.length ? "Deselect All" : "Select All Class"}
+                {selectedStudentIds.length === studentsForSelectedSubject.length ? "Deselect All" : "Select All Assigned"}
               </button>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
-              {students.map((stu) => {
+              {studentsForSelectedSubject.map((stu) => {
                 const isChecked = selectedStudentIds.includes(stu.id);
                 return (
                   <div
@@ -648,7 +695,7 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
                 value={wizardSubjectId}
                 onChange={(e) => {
                   setWizardSubjectId(e.target.value);
-                  const sub = hierarchy.find((s) => s.id === e.target.value);
+                  const sub = teacherAuthorizedSubjects.find((s) => s.id === e.target.value);
                   if (sub?.books?.length) {
                     setWizardBookId(sub.books[0].id);
                     if (sub.books[0].chapters?.length) {
@@ -661,7 +708,7 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
                 }}
                 className="w-full text-xs bg-white border border-slate-200 rounded-xl p-2.5 font-medium text-slate-800"
               >
-                {hierarchy.map((s) => (
+                {teacherAuthorizedSubjects.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
@@ -921,6 +968,20 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
                       {stu.studentProfile?.classGrade} • Roll #{stu.studentProfile?.rollNo || "--"}
                     </p>
                     <p className="text-[10px] text-slate-400">{stu.email}</p>
+                    {stu.assignedTeachersAsStudent && stu.assignedTeachersAsStudent.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {stu.assignedTeachersAsStudent
+                          .filter((a: any) => !currentUser || currentUser.role !== "TEACHER" || a.teacherId === currentUser.id)
+                          .map((a: any) => (
+                            <span
+                              key={a.id}
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200"
+                            >
+                              Subject: {a.subject?.name}
+                            </span>
+                          ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1075,6 +1136,20 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
                   <p className="text-xs text-slate-500">
                     {selectedStudentProfile.studentProfile?.classGrade} • Roll #{selectedStudentProfile.studentProfile?.rollNo || "--"} • {selectedStudentProfile.studentProfile?.schoolName || "Delhi Public School"}
                   </p>
+                  {selectedStudentProfile.assignedTeachersAsStudent && selectedStudentProfile.assignedTeachersAsStudent.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {selectedStudentProfile.assignedTeachersAsStudent
+                        .filter((a: any) => !currentUser || currentUser.role !== "TEACHER" || a.teacherId === currentUser.id)
+                        .map((a: any) => (
+                          <span
+                            key={a.id}
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200"
+                          >
+                            Assigned Subject: {a.subject?.name}
+                          </span>
+                        ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <button
