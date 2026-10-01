@@ -16,7 +16,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       name,
-      role,
       schoolName,
       classGrade,
       section,
@@ -26,18 +25,18 @@ export async function POST(req: NextRequest) {
       bio,
     } = body;
 
-    const chosenRole = role === "TEACHER" ? "TEACHER" : role === "STUDENT" ? "STUDENT" : user.role;
+    // Role is immutable once registered - users can only modify their own profile data
+    const existingRole = user.role;
 
-    // Update user name and role
+    // Update user name
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: {
         name: name ? name.trim() : user.name,
-        role: chosenRole,
       },
     });
 
-    if (chosenRole === "TEACHER") {
+    if (existingRole === "TEACHER") {
       // Upsert Teacher Profile
       await prisma.teacherProfile.upsert({
         where: { userId: user.id },
@@ -53,7 +52,7 @@ export async function POST(req: NextRequest) {
           bio: bio?.trim() || `Teacher at ${schoolName || "ClassBoard"}`,
         },
       });
-    } else if (chosenRole === "STUDENT") {
+    } else if (existingRole === "STUDENT") {
       // Upsert Student Profile
       await prisma.studentProfile.upsert({
         where: { userId: user.id },

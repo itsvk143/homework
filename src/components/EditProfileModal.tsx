@@ -6,10 +6,11 @@ import {
   User,
   GraduationCap,
   BookOpen,
-  CheckCircle2,
+  Lock,
   School,
   Save,
   Loader2,
+  ShieldCheck,
 } from "lucide-react";
 
 interface EditProfileModalProps {
@@ -28,9 +29,7 @@ export function EditProfileModal({
   if (!isOpen || !currentUser) return null;
 
   const [name, setName] = useState(currentUser.name || "");
-  const [role, setRole] = useState<"STUDENT" | "TEACHER">(
-    currentUser.role === "TEACHER" ? "TEACHER" : "STUDENT"
-  );
+  const role = currentUser.role; // Immutable once signup completed
 
   // Student specific fields
   const [classGrade, setClassGrade] = useState(
@@ -43,7 +42,9 @@ export function EditProfileModal({
     currentUser.studentProfile?.rollNo || ""
   );
   const [schoolName, setSchoolName] = useState(
-    currentUser.studentProfile?.schoolName || "Delhi Public School"
+    currentUser.studentProfile?.schoolName ||
+      currentUser.teacherProfile?.schoolName ||
+      "Delhi Public School"
   );
 
   // Teacher specific fields
@@ -71,7 +72,6 @@ export function EditProfileModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
-          role,
           schoolName: schoolName.trim(),
           classGrade: role === "STUDENT" ? classGrade : undefined,
           section: role === "STUDENT" ? section : undefined,
@@ -87,8 +87,7 @@ export function EditProfileModal({
           onProfileUpdated(data.user);
         }
         onClose();
-        // Redirect to appropriate dashboard if role changed
-        window.location.href = data.redirectUrl || "/";
+        window.location.reload();
       } else {
         setError(data.error || "Failed to update profile.");
       }
@@ -110,80 +109,53 @@ export function EditProfileModal({
             </div>
             <div>
               <h3 className="font-bold text-base text-slate-900">
-                Academic Profile & Role
+                Edit Profile
               </h3>
               <p className="text-xs text-slate-500">
-                Customize your identity, role, and academic details
+                Modify your personal and academic details
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700">
               {error}
             </div>
           )}
 
-          {/* Role Selection */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-              Select Role
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setRole("STUDENT")}
-                className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative ${
-                  role === "STUDENT"
-                    ? "border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20"
-                    : "border-slate-200 hover:border-slate-300"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                    <BookOpen className="w-4 h-4" />
-                  </div>
-                  {role === "STUDENT" && (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  )}
+          {/* Locked Role Indicator (Immutable once signed up) */}
+          <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                {role === "TEACHER" ? (
+                  <GraduationCap className="w-4 h-4" />
+                ) : role === "ADMIN" ? (
+                  <ShieldCheck className="w-4 h-4 text-rose-600" />
+                ) : (
+                  <BookOpen className="w-4 h-4 text-emerald-600" />
+                )}
+              </div>
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Account Role
                 </div>
-                <div className="font-bold text-xs text-slate-900">Student</div>
-                <div className="text-[10px] text-slate-500">
-                  Track exercises & homework
+                <div className="text-xs font-bold text-slate-800">
+                  {role} ACCOUNT
                 </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setRole("TEACHER")}
-                className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative ${
-                  role === "TEACHER"
-                    ? "border-indigo-600 bg-indigo-50/50 ring-2 ring-indigo-500/20"
-                    : "border-slate-200 hover:border-slate-300"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
-                    <GraduationCap className="w-4 h-4" />
-                  </div>
-                  {role === "TEACHER" && (
-                    <CheckCircle2 className="w-4 h-4 text-indigo-600" />
-                  )}
-                </div>
-                <div className="font-bold text-xs text-slate-900">Teacher</div>
-                <div className="text-[10px] text-slate-500">
-                  Assign & track progress
-                </div>
-              </button>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 bg-slate-200/60 px-2.5 py-1 rounded-xl">
+              <Lock className="w-3 h-3 text-slate-400" />
+              <span>Role Locked</span>
             </div>
           </div>
 
@@ -197,24 +169,27 @@ export function EditProfileModal({
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-medium"
+              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-medium"
             />
           </div>
 
-          {/* Dynamic Role Fields */}
-          {role === "STUDENT" ? (
-            <div className="p-3.5 bg-emerald-50/40 border border-emerald-200/60 rounded-2xl space-y-3">
+          {/* Role-Specific User Data (Student or Teacher) */}
+          {role === "STUDENT" && (
+            <div className="p-4 bg-emerald-50/40 border border-emerald-200/60 rounded-2xl space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   School / Institution
                 </label>
-                <input
-                  type="text"
-                  value={schoolName}
-                  onChange={(e) => setSchoolName(e.target.value)}
-                  placeholder="e.g. Delhi Public School"
-                  className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
-                />
+                <div className="relative">
+                  <School className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={schoolName}
+                    onChange={(e) => setSchoolName(e.target.value)}
+                    placeholder="e.g. Delhi Public School"
+                    className="w-full pl-9 pr-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
@@ -225,7 +200,7 @@ export function EditProfileModal({
                   <select
                     value={classGrade}
                     onChange={(e) => setClassGrade(e.target.value)}
-                    className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
+                    className="w-full px-2 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
                   >
                     <option value="Class 4">Class 4</option>
                     <option value="Class 5">Class 5</option>
@@ -248,7 +223,7 @@ export function EditProfileModal({
                   <select
                     value={section}
                     onChange={(e) => setSection(e.target.value)}
-                    className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
+                    className="w-full px-2 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
                   >
                     <option value="A">Section A</option>
                     <option value="B">Section B</option>
@@ -266,13 +241,15 @@ export function EditProfileModal({
                     value={rollNo}
                     onChange={(e) => setRollNo(e.target.value)}
                     placeholder="e.g. 14"
-                    className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
+                    className="w-full px-2 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
                   />
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="p-3.5 bg-indigo-50/40 border border-indigo-200/60 rounded-2xl space-y-3">
+          )}
+
+          {role === "TEACHER" && (
+            <div className="p-4 bg-indigo-50/40 border border-indigo-200/60 rounded-2xl space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Primary Subject Specialty
@@ -280,7 +257,7 @@ export function EditProfileModal({
                 <select
                   value={subjectSpecialty}
                   onChange={(e) => setSubjectSpecialty(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-medium"
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-medium"
                 >
                   <option value="Mathematics">Mathematics</option>
                   <option value="Science & Mathematics">Science & Mathematics</option>
@@ -289,6 +266,7 @@ export function EditProfileModal({
                   <option value="Biology">Biology</option>
                   <option value="Science & English">Science & English</option>
                   <option value="Social Studies">Social Studies</option>
+                  <option value="Computer Science">Computer Science</option>
                   <option value="General Academic">General Academic</option>
                 </select>
               </div>
@@ -302,7 +280,7 @@ export function EditProfileModal({
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="+91 98765 43210"
-                  className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-medium"
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-medium"
                 />
               </div>
             </div>
