@@ -1,501 +1,374 @@
+// mobile/App.tsx
 import React, { useState } from "react";
 import {
   SafeAreaView,
   StyleSheet,
-  Text,
   View,
+  Text,
   TouchableOpacity,
-  ScrollView,
-  TextInput,
-  Alert,
   StatusBar,
 } from "react-native";
+import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
+import { PerformanceProvider, usePerformance } from "./src/context/PerformanceContext";
+import { InteractiveBackground } from "./src/components/InteractiveBackground";
+import { StudentHomeDashboard } from "./src/components/StudentHomeDashboard";
+import { TeacherChapterMatrix } from "./src/components/TeacherChapterMatrix";
+import { LiveNotificationBadge } from "./src/components/LiveNotificationBadge";
+import { StudentProgress, Role, PerformanceMode } from "./src/types";
 
-export default function App() {
-  const [role, setRole] = useState<"STUDENT" | "TEACHER">("STUDENT");
+// Demo NEET/JEE chapter progress data for teacher matrix
+const DEMO_STUDENT_MATRIX: StudentProgress[] = [
+  {
+    studentId: "s-1",
+    studentName: "Rahul Kumar",
+    rollNo: "14",
+    overallPercentage: 68,
+    exerciseScores: [
+      { exerciseNumber: 1, exerciseName: "Ex 1 — Mole Concept Basics", completed: 20, total: 20, status: "COMPLETED" },
+      { exerciseNumber: 2, exerciseName: "Ex 2 — Molar Mass & Gas Laws", completed: 15, total: 20, status: "IN_PROGRESS" },
+      { exerciseNumber: 3, exerciseName: "Ex 3 — Limiting Reagents", completed: 10, total: 15, status: "IN_PROGRESS" },
+      { exerciseNumber: 4, exerciseName: "Ex 4 — Concentration Terms", completed: 0, total: 20, status: "NOT_STARTED" },
+    ],
+  },
+  {
+    studentId: "s-2",
+    studentName: "Priya Patel",
+    rollNo: "22",
+    overallPercentage: 92,
+    exerciseScores: [
+      { exerciseNumber: 1, exerciseName: "Ex 1 — Mole Concept Basics", completed: 20, total: 20, status: "COMPLETED" },
+      { exerciseNumber: 2, exerciseName: "Ex 2 — Molar Mass & Gas Laws", completed: 20, total: 20, status: "COMPLETED" },
+      { exerciseNumber: 3, exerciseName: "Ex 3 — Limiting Reagents", completed: 15, total: 15, status: "COMPLETED" },
+      { exerciseNumber: 4, exerciseName: "Ex 4 — Concentration Terms", completed: 16, total: 20, status: "IN_PROGRESS" },
+    ],
+  },
+  {
+    studentId: "s-3",
+    studentName: "Aman Singh",
+    rollNo: "05",
+    overallPercentage: 45,
+    exerciseScores: [
+      { exerciseNumber: 1, exerciseName: "Ex 1 — Mole Concept Basics", completed: 18, total: 20, status: "IN_PROGRESS" },
+      { exerciseNumber: 2, exerciseName: "Ex 2 — Molar Mass & Gas Laws", completed: 10, total: 20, status: "IN_PROGRESS" },
+      { exerciseNumber: 3, exerciseName: "Ex 3 — Limiting Reagents", completed: 5, total: 15, status: "IN_PROGRESS" },
+      { exerciseNumber: 4, exerciseName: "Ex 4 — Concentration Terms", completed: 0, total: 20, status: "NOT_STARTED" },
+    ],
+  },
+  {
+    studentId: "s-4",
+    studentName: "Ananya Roy",
+    rollNo: "08",
+    overallPercentage: 86,
+    exerciseScores: [
+      { exerciseNumber: 1, exerciseName: "Ex 1 — Mole Concept Basics", completed: 20, total: 20, status: "COMPLETED" },
+      { exerciseNumber: 2, exerciseName: "Ex 2 — Molar Mass & Gas Laws", completed: 18, total: 20, status: "IN_PROGRESS" },
+      { exerciseNumber: 3, exerciseName: "Ex 3 — Limiting Reagents", completed: 14, total: 15, status: "IN_PROGRESS" },
+      { exerciseNumber: 4, exerciseName: "Ex 4 — Concentration Terms", completed: 12, total: 20, status: "IN_PROGRESS" },
+    ],
+  },
+];
+
+function MainApp() {
+  const { theme, toggleTheme } = useTheme();
+  const { performanceMode, setPerformanceMode } = usePerformance();
+  const [role, setRole] = useState<Role>("STUDENT");
   const [activeTab, setActiveTab] = useState<string>("HOME");
 
-  // Fast Progress Update Demo state (< 10 seconds flow)
-  const [questionsCompleted, setQuestionsCompleted] = useState<number>(12);
-  const totalQuestions = 20;
-  const progressPercentage = Math.round((questionsCompleted / totalQuestions) * 100);
-  const remaining = Math.max(0, totalQuestions - questionsCompleted);
-
-  const handleSaveProgress = () => {
-    Alert.alert(
-      "Progress Saved! 🎉",
-      `Recorded ${questionsCompleted} / ${totalQuestions} Questions (${progressPercentage}%). Synced to server.`
-    );
-  };
-
-  const handleMarkCompleted = () => {
-    setQuestionsCompleted(20);
-    Alert.alert("Completed! 🎉", "Exercise 4.2 marked 100% completed!");
+  // Cycle through performance modes: HIGH -> NORMAL -> BATTERY_SAVER
+  const cyclePerformanceMode = () => {
+    const nextMode: Record<PerformanceMode, PerformanceMode> = {
+      HIGH: "NORMAL",
+      NORMAL: "BATTERY_SAVER",
+      BATTERY_SAVER: "HIGH",
+    };
+    setPerformanceMode(nextMode[performanceMode]);
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+    <InteractiveBackground>
+      <SafeAreaView style={styles.safeContainer}>
+        <StatusBar
+          barStyle={theme.mode === "DARK" ? "light-content" : "dark-content"}
+          backgroundColor="transparent"
+          translucent
+        />
 
-      {/* Mobile Top Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.brandTitle}>ClassBoard Mobile</Text>
-          <Text style={styles.brandSubtitle}>
-            {role === "STUDENT" ? "Rahul Kumar • Class 8-A" : "Mrs. Sunita Sharma • Teacher"}
-          </Text>
+        {/* 1. TOP RESPONSIVE HEADER BAR */}
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: theme.mode === "DARK" ? "rgba(17, 24, 39, 0.75)" : "rgba(255, 255, 255, 0.8)",
+              borderBottomColor: theme.cardBorder,
+            },
+          ]}
+        >
+          {/* Logo & Identity */}
+          <View style={styles.brandContainer}>
+            <View style={[styles.brandLogoCircle, { backgroundColor: theme.accentPrimary }]}>
+              <Text style={styles.brandLogoIcon}>✦</Text>
+            </View>
+            <View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={[styles.brandTitle, { color: theme.textPrimary }]}>ClassBoard</Text>
+                <View style={[styles.modePill, { backgroundColor: "rgba(99, 102, 241, 0.15)" }]}>
+                  <Text style={[styles.modePillText, { color: theme.accentPrimary }]}>
+                    {role}
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.brandSubtitle, { color: theme.textMuted }]}>
+                Live-Wallpaper Mobile
+              </Text>
+            </View>
+          </View>
+
+          {/* Quick Header Action Controls */}
+          <View style={styles.headerControls}>
+            {/* Battery / Performance Mode Switcher */}
+            <TouchableOpacity
+              onPress={cyclePerformanceMode}
+              style={[styles.iconButton, { borderColor: theme.cardBorder, backgroundColor: theme.surfaceSubtle }]}
+              accessibilityLabel="Toggle Battery Saver Performance Mode"
+            >
+              <Text style={[styles.iconBtnText, { color: theme.textPrimary }]}>
+                {performanceMode === "BATTERY_SAVER" ? "🔋" : performanceMode === "HIGH" ? "⚡" : "✨"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Dark / Light Mode Toggle */}
+            <TouchableOpacity
+              onPress={toggleTheme}
+              style={[styles.iconButton, { borderColor: theme.cardBorder, backgroundColor: theme.surfaceSubtle }]}
+              accessibilityLabel="Toggle Dark / Light Theme"
+            >
+              <Text style={[styles.iconBtnText, { color: theme.textPrimary }]}>
+                {theme.mode === "DARK" ? "☀️" : "🌙"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Notification Bell with Animated Live Pulse Badge */}
+            <View style={{ position: "relative" }}>
+              <TouchableOpacity
+                style={[styles.iconButton, { borderColor: theme.cardBorder, backgroundColor: theme.surfaceSubtle }]}
+              >
+                <Text style={[styles.iconBtnText, { color: theme.textPrimary }]}>🔔</Text>
+              </TouchableOpacity>
+              <LiveNotificationBadge count={3} />
+            </View>
+
+            {/* Role Switcher (Student <-> Teacher) */}
+            <TouchableOpacity
+              onPress={() => setRole(role === "STUDENT" ? "TEACHER" : "STUDENT")}
+              style={[styles.roleSwitchBtn, { backgroundColor: theme.accentPrimary }]}
+            >
+              <Text style={styles.roleSwitchText}>
+                {role === "STUDENT" ? "Teacher View" : "Student View"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Role Toggle for demonstration */}
-        <TouchableOpacity
-          onPress={() => setRole(role === "STUDENT" ? "TEACHER" : "STUDENT")}
-          style={styles.roleToggle}
+        {/* 2. BODY CONTENT (Interactive Dashboard) */}
+        <View style={styles.body}>
+          {role === "STUDENT" ? (
+            <StudentHomeDashboard studentName="Rahul Kumar" classGrade="Class 8-A" />
+          ) : (
+            <View style={{ flex: 1, padding: 16 }}>
+              <TeacherChapterMatrix
+                examName="NEET"
+                subjectName="Physical Chemistry"
+                bookName="Narendra Avasthi"
+                chapterName="Mole Concept & Stoichiometry"
+                data={DEMO_STUDENT_MATRIX}
+              />
+            </View>
+          )}
+        </View>
+
+        {/* 3. BOTTOM NAVIGATION BAR */}
+        <View
+          style={[
+            styles.bottomNav,
+            {
+              backgroundColor: theme.tabBarBackground,
+              borderTopColor: theme.tabBarBorder,
+            },
+          ]}
         >
-          <Text style={styles.roleToggleText}>Role: {role}</Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.content}>
-        {role === "STUDENT" ? (
-          <>
-            {/* Quick Progress Card (Requirement 51) */}
-            <View style={styles.quickCard}>
-              <View style={styles.badgeRow}>
-                <Text style={styles.subjectBadge}>Mathematics</Text>
-                <Text style={styles.dueBadge}>Due Today</Text>
-              </View>
-
-              <Text style={styles.bookTitle}>NCERT Mathematics Class 8</Text>
-              <Text style={styles.exerciseTitle}>Chapter 4 — Exercise 4.2</Text>
-              <Text style={styles.metaText}>Total Questions: {totalQuestions}</Text>
-
-              {/* Progress Bar */}
-              <View style={styles.progressContainer}>
-                <View style={[styles.progressBar, { width: `${progressPercentage}%` }]} />
-              </View>
-
-              {/* Question Count Display */}
-              <View style={styles.statsRow}>
-                <Text style={styles.statsText}>
-                  {questionsCompleted} / {totalQuestions} Completed
+          {role === "STUDENT" ? (
+            <>
+              <TouchableOpacity onPress={() => setActiveTab("HOME")} style={styles.navItem}>
+                <Text style={[styles.navIcon, activeTab === "HOME" && { color: theme.accentPrimary }]}>🏠</Text>
+                <Text style={[styles.navLabel, { color: activeTab === "HOME" ? theme.accentPrimary : theme.textMuted }]}>
+                  Home
                 </Text>
-                <Text style={styles.statsPercent}>{progressPercentage}%</Text>
-              </View>
-
-              <Text style={styles.remainingText}>{remaining} Questions Remaining</Text>
-
-              {/* Number Input Stepper */}
-              <View style={styles.stepperRow}>
-                <TouchableOpacity
-                  onPress={() => setQuestionsCompleted(Math.max(0, questionsCompleted - 1))}
-                  style={styles.stepButton}
-                >
-                  <Text style={styles.stepButtonText}>-</Text>
-                </TouchableOpacity>
-
-                <View style={styles.inputBox}>
-                  <Text style={styles.inputValue}>{questionsCompleted}</Text>
-                </View>
-
-                <TouchableOpacity
-                  onPress={() => setQuestionsCompleted(Math.min(totalQuestions, questionsCompleted + 1))}
-                  style={styles.stepButton}
-                >
-                  <Text style={styles.stepButtonText}>+</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Fast Action Buttons */}
-              <TouchableOpacity onPress={handleSaveProgress} style={styles.saveButton}>
-                <Text style={styles.saveButtonText}>SAVE PROGRESS</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={handleMarkCompleted} style={styles.completeButton}>
-                <Text style={styles.completeButtonText}>✓ MARK EXERCISE COMPLETED</Text>
+              <TouchableOpacity onPress={() => setActiveTab("HW")} style={styles.navItem}>
+                <Text style={[styles.navIcon, activeTab === "HW" && { color: theme.accentPrimary }]}>📚</Text>
+                <Text style={[styles.navLabel, { color: activeTab === "HW" ? theme.accentPrimary : theme.textMuted }]}>
+                  Homework
+                </Text>
               </TouchableOpacity>
-            </View>
 
-            {/* Other Homeworks list preview */}
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>More Assigned Homework</Text>
-            </View>
+              <TouchableOpacity onPress={() => setActiveTab("PROGRESS")} style={styles.navItem}>
+                <Text style={[styles.navIcon, activeTab === "PROGRESS" && { color: theme.accentPrimary }]}>📊</Text>
+                <Text style={[styles.navLabel, { color: activeTab === "PROGRESS" ? theme.accentPrimary : theme.textMuted }]}>
+                  Progress
+                </Text>
+              </TouchableOpacity>
 
-            <View style={styles.hwItem}>
-              <Text style={styles.hwSubject}>Science</Text>
-              <Text style={styles.hwTitle}>Exercise 1.1 — Crop Production</Text>
-              <Text style={styles.hwProgress}>10 / 10 Questions (100% Completed)</Text>
-            </View>
+              <TouchableOpacity onPress={() => setActiveTab("PROFILE")} style={styles.navItem}>
+                <Text style={[styles.navIcon, activeTab === "PROFILE" && { color: theme.accentPrimary }]}>👤</Text>
+                <Text style={[styles.navLabel, { color: activeTab === "PROFILE" ? theme.accentPrimary : theme.textMuted }]}>
+                  Profile
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity onPress={() => setActiveTab("MATRIX")} style={styles.navItem}>
+                <Text style={[styles.navIcon, activeTab === "MATRIX" && { color: theme.accentPrimary }]}>📑</Text>
+                <Text style={[styles.navLabel, { color: activeTab === "MATRIX" ? theme.accentPrimary : theme.textMuted }]}>
+                  Matrix
+                </Text>
+              </TouchableOpacity>
 
-            <View style={styles.hwItem}>
-              <Text style={styles.hwSubject}>Mathematics</Text>
-              <Text style={styles.hwTitle}>Exercise 3.2 — Quadrilaterals</Text>
-              <Text style={styles.hwProgress}>0 / 6 Questions (Not Started)</Text>
-            </View>
-          </>
-        ) : (
-          /* TEACHER VIEW */
-          <>
-            <View style={styles.teacherStatsGrid}>
-              <View style={styles.statBox}>
-                <Text style={styles.statLabel}>Students</Text>
-                <Text style={styles.statVal}>42</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statLabel}>Assigned Today</Text>
-                <Text style={styles.statVal}>38</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statLabel}>Completed</Text>
-                <Text style={[styles.statVal, { color: "#10B981" }]}>27</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statLabel}>Overdue</Text>
-                <Text style={[styles.statVal, { color: "#EF4444" }]}>3</Text>
-              </View>
-            </View>
+              <TouchableOpacity onPress={() => setActiveTab("STUDENTS")} style={styles.navItem}>
+                <Text style={[styles.navIcon, activeTab === "STUDENTS" && { color: theme.accentPrimary }]}>👥</Text>
+                <Text style={[styles.navLabel, { color: activeTab === "STUDENTS" ? theme.accentPrimary : theme.textMuted }]}>
+                  Students
+                </Text>
+              </TouchableOpacity>
 
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Today's Student Submissions</Text>
-            </View>
+              <TouchableOpacity onPress={() => setActiveTab("ASSIGN")} style={styles.navItem}>
+                <Text style={[styles.navIcon, activeTab === "ASSIGN" && { color: theme.accentPrimary }]}>✍️</Text>
+                <Text style={[styles.navLabel, { color: activeTab === "ASSIGN" ? theme.accentPrimary : theme.textMuted }]}>
+                  Assign
+                </Text>
+              </TouchableOpacity>
 
-            <View style={styles.hwItem}>
-              <Text style={styles.hwSubject}>Rahul Kumar • Math Ex 4.2</Text>
-              <Text style={styles.hwTitle}>12 / 20 Questions Completed (60%)</Text>
-              <Text style={styles.hwProgress}>Status: In Progress</Text>
-            </View>
+              <TouchableOpacity onPress={() => setActiveTab("SETTINGS")} style={styles.navItem}>
+                <Text style={[styles.navIcon, activeTab === "SETTINGS" && { color: theme.accentPrimary }]}>⚙️</Text>
+                <Text style={[styles.navLabel, { color: activeTab === "SETTINGS" ? theme.accentPrimary : theme.textMuted }]}>
+                  Settings
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </SafeAreaView>
+    </InteractiveBackground>
+  );
+}
 
-            <View style={styles.hwItem}>
-              <Text style={styles.hwSubject}>Priya Patel • Math Ex 4.2</Text>
-              <Text style={styles.hwTitle}>18 / 20 Questions Completed (90%)</Text>
-              <Text style={styles.hwProgress}>Status: In Progress</Text>
-            </View>
-
-            <View style={styles.hwItem}>
-              <Text style={styles.hwSubject}>Ananya Roy • Math Ex 4.2</Text>
-              <Text style={styles.hwTitle}>20 / 20 Questions Completed (100%)</Text>
-              <Text style={styles.hwProgress}>Status: Completed</Text>
-            </View>
-          </>
-        )}
-      </ScrollView>
-
-      {/* Bottom Navigation Tabs (Requirement 49 & 50) */}
-      <View style={styles.bottomNav}>
-        {role === "STUDENT" ? (
-          <>
-            <TouchableOpacity onPress={() => setActiveTab("HOME")} style={styles.navItem}>
-              <Text style={[styles.navText, activeTab === "HOME" && styles.navTextActive]}>Home</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setActiveTab("HW")} style={styles.navItem}>
-              <Text style={[styles.navText, activeTab === "HW" && styles.navTextActive]}>Homework</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setActiveTab("CAL")} style={styles.navItem}>
-              <Text style={[styles.navText, activeTab === "CAL" && styles.navTextActive]}>Calendar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setActiveTab("PROG")} style={styles.navItem}>
-              <Text style={[styles.navText, activeTab === "PROG" && styles.navTextActive]}>Progress</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setActiveTab("PROF")} style={styles.navItem}>
-              <Text style={[styles.navText, activeTab === "PROF" && styles.navTextActive]}>Profile</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <TouchableOpacity onPress={() => setActiveTab("DASH")} style={styles.navItem}>
-              <Text style={[styles.navText, activeTab === "DASH" && styles.navTextActive]}>Dashboard</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setActiveTab("STU")} style={styles.navItem}>
-              <Text style={[styles.navText, activeTab === "STU" && styles.navTextActive]}>Students</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setActiveTab("HW")} style={styles.navItem}>
-              <Text style={[styles.navText, activeTab === "HW" && styles.navTextActive]}>Homework</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setActiveTab("REP")} style={styles.navItem}>
-              <Text style={[styles.navText, activeTab === "REP" && styles.navTextActive]}>Reports</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setActiveTab("PROF")} style={styles.navItem}>
-              <Text style={[styles.navText, activeTab === "PROF" && styles.navTextActive]}>Profile</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
-    </SafeAreaView>
+export default function App() {
+  return (
+    <ThemeProvider>
+      <PerformanceProvider>
+        <MainApp />
+      </PerformanceProvider>
+    </ThemeProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeContainer: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
   },
   header: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  brandContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  brandLogoCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  brandLogoIcon: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "900",
   },
   brandTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#0F172A",
+    fontSize: 15,
+    fontWeight: "900",
+    letterSpacing: -0.3,
   },
   brandSubtitle: {
-    fontSize: 11,
-    color: "#64748B",
-    marginTop: 1,
-  },
-  roleToggle: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: "#EEF2FF",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#C7D2FE",
-  },
-  roleToggleText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#4F46E5",
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  quickCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    marginBottom: 20,
-  },
-  badgeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  subjectBadge: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    backgroundColor: "#4F46E5",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  dueBadge: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#B45309",
-    backgroundColor: "#FEF3C7",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  bookTitle: {
-    fontSize: 13,
+    fontSize: 9,
     fontWeight: "600",
-    color: "#64748B",
   },
-  exerciseTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#0F172A",
-    marginTop: 2,
+  modePill: {
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
   },
-  metaText: {
-    fontSize: 12,
-    color: "#64748B",
-    marginTop: 2,
-    marginBottom: 12,
-  },
-  progressContainer: {
-    height: 8,
-    backgroundColor: "#F1F5F9",
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  progressBar: {
-    height: "100%",
-    backgroundColor: "#4F46E5",
-    borderRadius: 4,
-  },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  statsText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#1E293B",
-  },
-  statsPercent: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#4F46E5",
-  },
-  remainingText: {
-    fontSize: 11,
-    color: "#64748B",
-    marginTop: 2,
-    marginBottom: 14,
-  },
-  stepperRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    marginVertical: 8,
-  },
-  stepButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "#F1F5F9",
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepButtonText: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1E293B",
-  },
-  inputBox: {
-    width: 80,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#4F46E5",
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  inputValue: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
-  saveButton: {
-    backgroundColor: "#4F46E5",
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginTop: 12,
-  },
-  saveButtonText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  completeButton: {
-    backgroundColor: "#ECFDF5",
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
-    borderRadius: 14,
-    paddingVertical: 10,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  completeButtonText: {
-    color: "#059669",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  sectionHeader: {
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#475569",
-    textTransform: "uppercase",
-  },
-  hwItem: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    marginBottom: 8,
-  },
-  hwSubject: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#4F46E5",
-  },
-  hwTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginTop: 2,
-  },
-  hwProgress: {
-    fontSize: 11,
-    color: "#64748B",
-    marginTop: 4,
-  },
-  teacherStatsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 16,
-  },
-  statBox: {
-    flex: 1,
-    minWidth: "45%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  statLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#64748B",
-    textTransform: "uppercase",
-  },
-  statVal: {
-    fontSize: 20,
+  modePillText: {
+    fontSize: 8,
     fontWeight: "900",
-    color: "#0F172A",
-    marginTop: 4,
+    textTransform: "uppercase",
+  },
+  headerControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  iconButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconBtnText: {
+    fontSize: 14,
+  },
+  roleSwitchBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 12,
+  },
+  roleSwitchText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  body: {
+    flex: 1,
   },
   bottomNav: {
-    height: 56,
-    backgroundColor: "#FFFFFF",
-    borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
     flexDirection: "row",
-    alignItems: "center",
+    borderTopWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     justifyContent: "space-around",
+    alignItems: "center",
   },
   navItem: {
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
   },
-  navText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#94A3B8",
+  navIcon: {
+    fontSize: 17,
   },
-  navTextActive: {
-    color: "#4F46E5",
-    fontWeight: "800",
+  navLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    marginTop: 2,
   },
 });
