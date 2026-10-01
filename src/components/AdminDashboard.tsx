@@ -18,11 +18,16 @@ import {
   ChevronRight,
   Shield,
   Activity,
+  GraduationCap,
 } from "lucide-react";
 import { BookLibrary } from "./BookLibrary";
+import { AdminTeacherManagement } from "./AdminTeacherManagement";
+import { AdminStudentManagement } from "./AdminStudentManagement";
 
 export function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<"content" | "library" | "settings" | "audit">("content");
+  const [activeTab, setActiveTab] = useState<
+    "content" | "library" | "teachers" | "students" | "settings" | "audit"
+  >("content");
   const [hierarchy, setHierarchy] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({
     requireTeacherVerification: true,
@@ -172,10 +177,10 @@ export function AdminDashboard() {
     <div className="space-y-6">
       {/* Header Tabs */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
           <button
             onClick={() => setActiveTab("content")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === "content"
                 ? "bg-slate-900 text-white shadow-xs"
                 : "text-slate-600 hover:bg-slate-100"
@@ -187,7 +192,7 @@ export function AdminDashboard() {
 
           <button
             onClick={() => setActiveTab("library")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === "library"
                 ? "bg-slate-900 text-white shadow-xs"
                 : "text-slate-600 hover:bg-slate-100"
@@ -198,8 +203,32 @@ export function AdminDashboard() {
           </button>
 
           <button
+            onClick={() => setActiveTab("teachers")}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === "teachers"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "text-blue-700 bg-blue-50/60 hover:bg-blue-100/60"
+            }`}
+          >
+            <GraduationCap className="w-4 h-4" />
+            <span>Manage Teachers</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("students")}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === "students"
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "text-emerald-700 bg-emerald-50/60 hover:bg-emerald-100/60"
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Manage Students</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab("settings")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === "settings"
                 ? "bg-slate-900 text-white shadow-xs"
                 : "text-slate-600 hover:bg-slate-100"
@@ -211,7 +240,7 @@ export function AdminDashboard() {
 
           <button
             onClick={() => setActiveTab("audit")}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === "audit"
                 ? "bg-slate-900 text-white shadow-xs"
                 : "text-slate-600 hover:bg-slate-100"
@@ -439,6 +468,16 @@ export function AdminDashboard() {
       {/* TAB: MASTER BOOK LIBRARY */}
       {activeTab === "library" && (
         <BookLibrary />
+      )}
+
+      {/* TAB: MANAGE TEACHERS DASHBOARD */}
+      {activeTab === "teachers" && (
+        <AdminTeacherManagement />
+      )}
+
+      {/* TAB: MANAGE STUDENTS DASHBOARD */}
+      {activeTab === "students" && (
+        <AdminStudentManagement />
       )}
 
       {/* TAB 2: SYSTEM SETTINGS (Requirement 32 & 42) */}
