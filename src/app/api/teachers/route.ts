@@ -37,9 +37,38 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // 1. Permanently remove deleted mock teachers if present in this container's DB
+    await prisma.user.deleteMany({
+      where: {
+        email: {
+          in: ["teacher@classboard.com", "verma@classboard.com"],
+        },
+      },
+    }).catch(() => {});
+
+    // 2. Retrieve all admin-deleted teachers from audit log to permanently prevent reappearance
+    const deletedLogs = await prisma.auditLog.findMany({
+      where: { action: "ADMIN_DELETE_TEACHER" },
+      select: { entityId: true, metadata: true },
+    }).catch(() => []);
+
+    const deletedIds = new Set<string>(deletedLogs.map((l) => l.entityId).filter(Boolean) as string[]);
+    const deletedEmails = new Set<string>(["teacher@classboard.com", "verma@classboard.com"]);
+
+    for (const log of deletedLogs) {
+      if (log.metadata) {
+        try {
+          const parsed = JSON.parse(log.metadata);
+          if (parsed.email) deletedEmails.add(parsed.email);
+        } catch {}
+      }
+    }
+
     const teachers = await prisma.user.findMany({
       where: {
         role: "TEACHER",
+        email: { notIn: Array.from(deletedEmails) },
+        id: { notIn: Array.from(deletedIds) },
       },
       include: {
         teacherProfile: true,
@@ -319,6 +348,11 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
+    const userToDelete = await prisma.user.findUnique({
+      where: { id },
+      select: { email: true, name: true },
+    });
+
     // Clean up all foreign keys safely
     await prisma.studentBook.deleteMany({ where: { assignedByTeacherId: id } });
     await prisma.homeworkProgressHistory.deleteMany({
@@ -328,7 +362,6 @@ export async function DELETE(req: NextRequest) {
     await prisma.teacherStudentAssignment.deleteMany({ where: { teacherId: id } });
     await prisma.teacherProfile.deleteMany({ where: { userId: id } });
     await prisma.notification.deleteMany({ where: { userId: id } });
-    await prisma.auditLog.deleteMany({ where: { entityId: id } });
 
     await prisma.user.delete({ where: { id } });
 
@@ -336,7 +369,7 @@ export async function DELETE(req: NextRequest) {
       action: "ADMIN_DELETE_TEACHER",
       entityType: "User",
       entityId: id,
-      metadata: { deletedBy: admin.email },
+      metadata: { deletedBy: admin.email, email: userToDelete?.email },
     });
 
     return NextResponse.json({ success: true, message: "Teacher deleted successfully" });

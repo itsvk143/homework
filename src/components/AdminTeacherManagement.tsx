@@ -86,7 +86,21 @@ export function AdminTeacherManagement() {
       const res = await fetch("/api/teachers", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        setTeachers(data.teachers || []);
+        let loaded = data.teachers || [];
+        if (typeof window !== "undefined") {
+          try {
+            const raw = localStorage.getItem("cb_deleted_teacher_ids") || "[]";
+            const deletedList: string[] = JSON.parse(raw);
+            loaded = loaded.filter(
+              (t: any) =>
+                !deletedList.includes(t.id) &&
+                !deletedList.includes(t.email?.toLowerCase()) &&
+                t.email?.toLowerCase() !== "teacher@classboard.com" &&
+                t.email?.toLowerCase() !== "verma@classboard.com"
+            );
+          } catch {}
+        }
+        setTeachers(loaded);
       }
     } catch (err) {
       console.error(err);
@@ -509,6 +523,17 @@ export function AdminTeacherManagement() {
       const data = await res.json();
       if (res.ok && data.success) {
         showNotification("success", "Teacher deleted successfully.");
+        if (typeof window !== "undefined") {
+          try {
+            const raw = localStorage.getItem("cb_deleted_teacher_ids") || "[]";
+            const deletedList: string[] = JSON.parse(raw);
+            if (!deletedList.includes(deletingTeacher.id)) deletedList.push(deletingTeacher.id);
+            if (deletingTeacher.email && !deletedList.includes(deletingTeacher.email.toLowerCase())) {
+              deletedList.push(deletingTeacher.email.toLowerCase());
+            }
+            localStorage.setItem("cb_deleted_teacher_ids", JSON.stringify(deletedList));
+          } catch {}
+        }
         setDeletingTeacher(null);
         fetchTeachers();
       } else {

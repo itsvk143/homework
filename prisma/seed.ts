@@ -43,43 +43,11 @@ async function main() {
     },
   });
 
-  // 3. Teachers (Upsert without any fake students attached)
-  const teacher1 = await prisma.user.upsert({
-    where: { email: "teacher@classboard.com" },
-    update: { role: "TEACHER" },
-    create: {
-      email: "teacher@classboard.com",
-      password: "teacher123",
-      name: "Mrs. Sunita Sharma",
-      role: "TEACHER",
-      avatarUrl:
-        "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80",
-      teacherProfile: {
-        create: {
-          subjectSpecialty: "Mathematics & Science",
-          phone: "+91 98765 43210",
-          bio: "Senior Mathematics Coordinator with 12+ years experience in CBSE curriculum.",
-        },
-      },
-    },
-  });
-
-  const teacher2 = await prisma.user.upsert({
-    where: { email: "verma@classboard.com" },
-    update: { role: "TEACHER" },
-    create: {
-      email: "verma@classboard.com",
-      password: "teacher123",
-      name: "Mr. R. K. Verma",
-      role: "TEACHER",
-      avatarUrl:
-        "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-      teacherProfile: {
-        create: {
-          subjectSpecialty: "Science & English",
-          phone: "+91 98765 43211",
-          bio: "Head of Science Department. Passionate about hands-on laboratory exercises.",
-        },
+  // 3. Teachers: Clean up deleted mock teachers so they NEVER reappear
+  await prisma.user.deleteMany({
+    where: {
+      email: {
+        in: ["teacher@classboard.com", "verma@classboard.com"],
       },
     },
   });
