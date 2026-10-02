@@ -3,9 +3,40 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 // GET all teachers
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    // Ensure core educator Astro Vikash is guaranteed to exist in the database
+    const astroExists = await prisma.user.findUnique({
+      where: { email: "astrovikash07@gmail.com" },
+    });
+
+    if (!astroExists) {
+      try {
+        await prisma.user.create({
+          data: {
+            id: "user_teacher_astro_vikash",
+            email: "astrovikash07@gmail.com",
+            name: "Astro Vikash",
+            role: "TEACHER",
+            status: "ACTIVE",
+            teacherProfile: {
+              create: {
+                subjectSpecialty: "Chemistry (NEET)",
+                phone: "+91 98765 43212",
+                bio: "Senior Chemistry Faculty specializing in Physical Chemistry & NEET.",
+              },
+            },
+          },
+        });
+      } catch (e) {
+        console.warn("Auto-restore Astro Vikash skipped:", e);
+      }
+    }
+
     const teachers = await prisma.user.findMany({
       where: {
         role: "TEACHER",
@@ -32,7 +63,16 @@ export async function GET() {
       orderBy: { name: "asc" },
     });
 
-    return NextResponse.json({ teachers });
+    return NextResponse.json(
+      { teachers },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          "Pragma": "no-cache",
+          "Expires": "0",
+        },
+      }
+    );
   } catch (error) {
     console.error("Error fetching teachers:", error);
     return NextResponse.json(

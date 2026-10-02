@@ -165,10 +165,12 @@ export async function getCurrentUser(
   // in the local database so they are NEVER logged out and NEVER asked to sign up or onboard again!
   if (!user && targetEmail) {
     const isSysAdmin = isAdminEmail(targetEmail);
-    const candidateRole =
-      (isSysAdmin ? "ADMIN" : verifiedSession?.role || userRoleCookie || fallbackRole || "STUDENT") as string;
+    const isAstroTeacher = targetEmail === "astrovikash07@gmail.com";
+    const candidateRole = isAstroTeacher
+      ? "TEACHER"
+      : ((isSysAdmin ? "ADMIN" : verifiedSession?.role || userRoleCookie || fallbackRole || "STUDENT") as string);
     const finalRole = isSysAdmin ? "ADMIN" : candidateRole === "PENDING" ? "STUDENT" : candidateRole;
-    const targetName = verifiedSession?.name || targetEmail.split("@")[0];
+    const targetName = isAstroTeacher ? "Astro Vikash" : (verifiedSession?.name || targetEmail.split("@")[0]);
 
     try {
       user = await prisma.user.upsert({

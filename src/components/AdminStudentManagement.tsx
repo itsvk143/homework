@@ -73,9 +73,9 @@ export function AdminStudentManagement() {
     try {
       setLoadingAssignments(true);
       const [assignRes, teachRes, subRes] = await Promise.all([
-        fetch(`/api/admin/teacher-student-assignments?studentId=${studentId}`),
-        fetch("/api/teachers"),
-        fetch("/api/subjects"),
+        fetch(`/api/admin/teacher-student-assignments?studentId=${studentId}`, { cache: "no-store" }),
+        fetch("/api/teachers", { cache: "no-store" }),
+        fetch("/api/subjects", { cache: "no-store" }),
       ]);
 
       if (assignRes.ok) {

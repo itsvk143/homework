@@ -84,6 +84,30 @@ async function main() {
     },
   });
 
+  const teacher3 = await prisma.user.upsert({
+    where: { email: "astrovikash07@gmail.com" },
+    update: {
+      name: "Astro Vikash",
+      role: "TEACHER",
+      status: "ACTIVE",
+    },
+    create: {
+      id: "user_teacher_astro_vikash",
+      email: "astrovikash07@gmail.com",
+      password: "teacher123",
+      name: "Astro Vikash",
+      role: "TEACHER",
+      status: "ACTIVE",
+      teacherProfile: {
+        create: {
+          subjectSpecialty: "Chemistry (NEET)",
+          phone: "+91 98765 43212",
+          bio: "Senior Chemistry Faculty specializing in Physical Chemistry & NEET.",
+        },
+      },
+    },
+  });
+
   // 4. Ensure Core Subjects exist
   const subjectsData = [
     {

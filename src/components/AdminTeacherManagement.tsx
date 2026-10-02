@@ -83,7 +83,7 @@ export function AdminTeacherManagement() {
   const fetchTeachers = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/teachers");
+      const res = await fetch("/api/teachers", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setTeachers(data.teachers || []);
