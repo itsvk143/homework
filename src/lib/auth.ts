@@ -63,7 +63,7 @@ export function createSessionToken(user: any): string {
     schoolName:
       user.studentProfile?.schoolName ||
       user.teacherProfile?.bio ||
-      "ClassBoard Academy",
+      "LV INSTITUTE",
     classGrade: user.studentProfile?.classGrade || "",
     subjectSpecialty: user.teacherProfile?.subjectSpecialty || "",
     phone: user.teacherProfile?.phone || "",
@@ -193,16 +193,16 @@ export async function getCurrentUser(
                     subjectSpecialty:
                       verifiedSession?.subjectSpecialty || "Mathematics & Science",
                     phone: verifiedSession?.phone || null,
-                    bio: `Teacher at ${verifiedSession?.schoolName || "ClassBoard"}`,
+                    bio: `Teacher at ${verifiedSession?.schoolName || "LV INSTITUTE"}`,
                   },
                 },
               }
             : {
                 studentProfile: {
                   create: {
-                    classGrade: verifiedSession?.classGrade || "Class 8",
+                    classGrade: verifiedSession?.classGrade || "NEET Dropper",
                     section: "A",
-                    schoolName: verifiedSession?.schoolName || "Delhi Public School",
+                    schoolName: verifiedSession?.schoolName || "LV INSTITUTE",
                   },
                 },
               }),

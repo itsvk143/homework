@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
+import { getNextRollNumber } from "@/lib/rollNumber";
 
 // GET all students
 export async function GET(req: NextRequest) {
@@ -106,6 +107,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const targetGrade = classGrade?.trim() || "NEET Dropper";
+    const targetSection = section?.trim() || "A";
+    const targetSchool = schoolName?.trim() || "LV INSTITUTE";
+
+    let finalRollNo = rollNo?.trim();
+    if (!finalRollNo) {
+      finalRollNo = await getNextRollNumber(targetGrade, targetSection);
+    }
+
     const newStudent = await prisma.user.create({
       data: {
         name: name.trim(),
@@ -115,10 +125,10 @@ export async function POST(req: NextRequest) {
         status: "ACTIVE",
         studentProfile: {
           create: {
-            classGrade: classGrade?.trim() || "Class 8",
-            section: section?.trim() || "A",
-            rollNo: rollNo?.trim() || null,
-            schoolName: schoolName?.trim() || "Delhi Public School",
+            classGrade: targetGrade,
+            section: targetSection,
+            rollNo: finalRollNo,
+            schoolName: targetSchool,
           },
         },
       },
@@ -213,7 +223,7 @@ export async function PUT(req: NextRequest) {
             create: {
               subjectSpecialty: subjectSpecialty?.trim() || "Mathematics & Science",
               phone: phone?.trim() || null,
-              bio: bio?.trim() || `Teacher at ${schoolName || "ClassBoard"}`,
+              bio: bio?.trim() || `Teacher at ${schoolName || "LV INSTITUTE"}`,
             },
           },
         },
@@ -258,13 +268,22 @@ export async function PUT(req: NextRequest) {
         },
       });
     } else {
+      const targetGrade = classGrade?.trim() || "NEET Dropper";
+      const targetSection = section?.trim() || "A";
+      const targetSchool = schoolName?.trim() || "LV INSTITUTE";
+
+      let finalRollNo = rollNo?.trim();
+      if (!finalRollNo) {
+        finalRollNo = await getNextRollNumber(targetGrade, targetSection);
+      }
+
       await prisma.studentProfile.create({
         data: {
           userId: id,
-          classGrade: classGrade?.trim() || "Class 8",
-          section: section?.trim() || "A",
-          rollNo: rollNo?.trim() || null,
-          schoolName: schoolName?.trim() || "Delhi Public School",
+          classGrade: targetGrade,
+          section: targetSection,
+          rollNo: finalRollNo,
+          schoolName: targetSchool,
         },
       });
     }

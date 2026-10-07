@@ -7,6 +7,7 @@ import {
   SESSION_COOKIE_OPTIONS,
 } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
+import { getNextRollNumber } from "@/lib/rollNumber";
 
 export async function POST(req: NextRequest) {
   try {
@@ -67,31 +68,40 @@ export async function POST(req: NextRequest) {
         update: {
           subjectSpecialty: subjectSpecialty?.trim() || "Mathematics & Science",
           phone: phone?.trim() || null,
-          bio: `Teacher at ${schoolName?.trim() || "ClassBoard Academy"}`,
+          bio: `Teacher at ${schoolName?.trim() || "LV INSTITUTE"}`,
         },
         create: {
           userId: user.id,
           subjectSpecialty: subjectSpecialty?.trim() || "Mathematics & Science",
           phone: phone?.trim() || null,
-          bio: `Teacher at ${schoolName?.trim() || "ClassBoard Academy"}`,
+          bio: `Teacher at ${schoolName?.trim() || "LV INSTITUTE"}`,
         },
       });
     } else if (finalRole === "STUDENT") {
+      const targetGrade = classGrade?.trim() || "NEET Dropper";
+      const targetSection = section?.trim() || "A";
+      const targetSchool = schoolName?.trim() || "LV INSTITUTE";
+
+      let finalRollNo = rollNo?.trim();
+      if (!finalRollNo) {
+        finalRollNo = await getNextRollNumber(targetGrade, targetSection);
+      }
+
       // Upsert student profile
       await prisma.studentProfile.upsert({
         where: { userId: user.id },
         update: {
-          classGrade: classGrade?.trim() || "Class 8",
-          section: section?.trim() || "A",
-          rollNo: rollNo?.trim() || null,
-          schoolName: schoolName?.trim() || "Delhi Public School",
+          classGrade: targetGrade,
+          section: targetSection,
+          rollNo: finalRollNo,
+          schoolName: targetSchool,
         },
         create: {
           userId: user.id,
-          classGrade: classGrade?.trim() || "Class 8",
-          section: section?.trim() || "A",
-          rollNo: rollNo?.trim() || null,
-          schoolName: schoolName?.trim() || "Delhi Public School",
+          classGrade: targetGrade,
+          section: targetSection,
+          rollNo: finalRollNo,
+          schoolName: targetSchool,
         },
       });
     }

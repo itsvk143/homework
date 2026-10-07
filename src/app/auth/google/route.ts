@@ -3,6 +3,7 @@ import { OAuth2Client } from "google-auth-library";
 import { prisma } from "@/lib/prisma";
 import { logAuditEvent } from "@/lib/audit";
 import { isAdminEmail, SESSION_COOKIE_OPTIONS, createSessionToken } from "@/lib/auth";
+import { getNextRollNumber } from "@/lib/rollNumber";
 
 // In-memory rate limiting map: ip -> { count, resetAt }
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -222,7 +223,7 @@ export async function POST(req: NextRequest) {
                       subjectSpecialty:
                         subjectSpecialty?.trim() || "Mathematics & Science",
                       phone: phone?.trim() || null,
-                      bio: `Teacher at ${schoolName || "ClassBoard"}`,
+                      bio: `Teacher at ${schoolName || "LV INSTITUTE"}`,
                     },
                   },
                 }
@@ -230,10 +231,15 @@ export async function POST(req: NextRequest) {
               ? {
                   studentProfile: {
                     create: {
-                      classGrade: classGrade?.trim() || "Class 8",
+                      classGrade: classGrade?.trim() || "NEET Dropper",
                       section: section?.trim() || "A",
-                      rollNo: rollNo?.trim() || null,
-                      schoolName: schoolName?.trim() || "Delhi Public School",
+                      rollNo:
+                        rollNo?.trim() ||
+                        (await getNextRollNumber(
+                          classGrade?.trim() || "NEET Dropper",
+                          section?.trim() || "A"
+                        )),
+                      schoolName: schoolName?.trim() || "LV INSTITUTE",
                     },
                   },
                 }

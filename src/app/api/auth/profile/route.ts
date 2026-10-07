@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
+import { getNextRollNumber } from "@/lib/rollNumber";
 
 export async function POST(req: NextRequest) {
   try {
@@ -49,25 +50,40 @@ export async function POST(req: NextRequest) {
           userId: user.id,
           subjectSpecialty: subjectSpecialty?.trim() || "Mathematics & Science",
           phone: phone?.trim() || null,
-          bio: bio?.trim() || `Teacher at ${schoolName || "ClassBoard"}`,
+          bio: bio?.trim() || `Teacher at ${schoolName || "LV INSTITUTE"}`,
         },
       });
     } else if (existingRole === "STUDENT") {
+      const targetGrade = classGrade?.trim() || "NEET Dropper";
+      const targetSection = section?.trim() || "A";
+      const targetSchool = schoolName?.trim() || "LV INSTITUTE";
+
+      let finalRollNo = rollNo !== undefined ? rollNo?.trim() : undefined;
+      if (finalRollNo === "") finalRollNo = undefined;
+
+      // If user has no roll number in DB and didn't provide one, compute next roll number
+      const existingProfile = await prisma.studentProfile.findUnique({
+        where: { userId: user.id },
+      });
+      if (!existingProfile?.rollNo && !finalRollNo) {
+        finalRollNo = await getNextRollNumber(targetGrade, targetSection);
+      }
+
       // Upsert Student Profile
       await prisma.studentProfile.upsert({
         where: { userId: user.id },
         update: {
-          classGrade: classGrade?.trim() || "Class 8",
-          section: section?.trim() || "A",
-          rollNo: rollNo !== undefined ? rollNo?.trim() : undefined,
-          schoolName: schoolName?.trim() || "Delhi Public School",
+          classGrade: targetGrade,
+          section: targetSection,
+          rollNo: finalRollNo !== undefined ? finalRollNo : existingProfile?.rollNo,
+          schoolName: targetSchool,
         },
         create: {
           userId: user.id,
-          classGrade: classGrade?.trim() || "Class 8",
-          section: section?.trim() || "A",
-          rollNo: rollNo?.trim() || null,
-          schoolName: schoolName?.trim() || "Delhi Public School",
+          classGrade: targetGrade,
+          section: targetSection,
+          rollNo: finalRollNo || (await getNextRollNumber(targetGrade, targetSection)),
+          schoolName: targetSchool,
         },
       });
     }

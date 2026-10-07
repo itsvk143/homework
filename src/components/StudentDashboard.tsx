@@ -131,7 +131,7 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold text-white/90 border border-white/20">
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
               <span>
-                {currentUser?.studentProfile?.schoolName || "Delhi Public School"} • {currentUser?.studentProfile?.classGrade}-{currentUser?.studentProfile?.section}
+                {currentUser?.studentProfile?.schoolName || "LV INSTITUTE"} • {currentUser?.studentProfile?.classGrade}-{currentUser?.studentProfile?.section}
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">

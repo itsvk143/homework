@@ -38,10 +38,10 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   // Student specific
-  const [schoolName, setSchoolName] = useState("Delhi Public School");
-  const [classGrade, setClassGrade] = useState("Class 8");
+  const [schoolName, setSchoolName] = useState("LV INSTITUTE");
+  const [classGrade, setClassGrade] = useState("NEET Dropper");
   const [section, setSection] = useState("A");
-  const [rollNo, setRollNo] = useState("");
+  const [rollNo, setRollNo] = useState("1");
 
   // Check existing session on mount - if logged in, auto-redirect immediately!
   useEffect(() => {
@@ -72,8 +72,28 @@ export default function SignupPage() {
       .catch(() => {});
   }, []);
 
+  // Automatically fetch next sequential roll number starting from 1
+  useEffect(() => {
+    if (role === "STUDENT") {
+      fetch(
+        `/api/students/next-roll?classGrade=${encodeURIComponent(
+          classGrade
+        )}&section=${encodeURIComponent(section)}`
+      )
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.nextRollNo) {
+            setRollNo(data.nextRollNo);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [role, classGrade, section]);
+
   // Teacher specific
   const STANDARD_CLASSES = [
+    "NEET Dropper",
+    "JEE Dropper",
     "Class 6",
     "Class 7",
     "Class 8",
@@ -81,7 +101,6 @@ export default function SignupPage() {
     "Class 10",
     "Class 11",
     "Class 12",
-    "JEE / NEET Dropper",
   ];
 
   const STANDARD_SUBJECTS = [
@@ -325,7 +344,7 @@ export default function SignupPage() {
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-xl tracking-tight text-slate-900">
-                  ClassBoard
+                  TRACKER
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
                   v2.0
@@ -339,7 +358,7 @@ export default function SignupPage() {
             Create your account
           </h2>
           <p className="mt-1 text-center text-xs text-slate-500">
-            Join ClassBoard to track homework, manage books, or review exercises
+            Join TRACKER to track homework, manage books, or review exercises
           </p>
         </div>
 
@@ -531,7 +550,7 @@ export default function SignupPage() {
                           type="text"
                           value={schoolName}
                           onChange={(e) => setSchoolName(e.target.value)}
-                          placeholder="e.g. Delhi Public School"
+                          placeholder="e.g. LV INSTITUTE"
                           className="w-full pl-9 pr-3.5 py-2.5 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
                         />
                       </div>
@@ -547,6 +566,8 @@ export default function SignupPage() {
                           onChange={(e) => setClassGrade(e.target.value)}
                           className="w-full px-3 py-2.5 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
                         >
+                          <option value="NEET Dropper">NEET Dropper</option>
+                          <option value="JEE Dropper">JEE Dropper</option>
                           <option value="Class 4">Class 4</option>
                           <option value="Class 5">Class 5</option>
                           <option value="Class 6">Class 6</option>
@@ -557,7 +578,6 @@ export default function SignupPage() {
                           <option value="Class 11">Class 11</option>
                           <option value="Class 12">Class 12</option>
                           <option value="Class 11 & 12">Class 11 & 12</option>
-                          <option value="JEE / NEET Dropper">JEE / NEET Dropper</option>
                         </select>
                       </div>
 
@@ -578,16 +598,24 @@ export default function SignupPage() {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Roll Number (optional)
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-semibold text-slate-700">
+                            Roll Number
+                          </label>
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                            Auto #
+                          </span>
+                        </div>
                         <input
                           type="text"
                           value={rollNo}
                           onChange={(e) => setRollNo(e.target.value)}
-                          placeholder="e.g. 15"
-                          className="w-full px-3 py-2.5 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
+                          placeholder="e.g. 1"
+                          className="w-full px-3 py-2.5 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-semibold text-emerald-900"
                         />
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          Starts from 1 for each class & section
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -603,7 +631,7 @@ export default function SignupPage() {
                           type="text"
                           value={schoolName}
                           onChange={(e) => setSchoolName(e.target.value)}
-                          placeholder="e.g. ClassBoard Academy / Delhi Public School"
+                          placeholder="e.g. LV INSTITUTE"
                           className="w-full pl-9 pr-3.5 py-2.5 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-medium"
                         />
                       </div>
@@ -802,7 +830,7 @@ export default function SignupPage() {
           {/* Security Badge */}
           <div className="mt-6 flex items-center justify-center gap-1.5 text-slate-400 text-[11px]">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Secure Role-Based Academic Authentication • ClassBoard v2.0</span>
+            <span>Secure Role-Based Academic Authentication • TRACKER v2.0</span>
           </div>
         </div>
       </div>

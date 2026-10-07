@@ -136,7 +136,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="border-t border-slate-200/80 bg-white/50 py-4 text-center text-xs text-slate-400">
-        ClassBoard Academic Platform • Predefined Content Hierarchy & Question-Level Progress Tracking
+        TRACKER Academic Platform • Predefined Content Hierarchy & Question-Level Progress Tracking
       </footer>
     </div>
   );

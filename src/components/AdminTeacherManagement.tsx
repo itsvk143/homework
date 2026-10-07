@@ -50,15 +50,17 @@ export function AdminTeacherManagement() {
   // Form States
   const [formData, setFormData] = useState<any>({});
   const [convertData, setConvertData] = useState<any>({
-    classGrade: "Class 8",
+    classGrade: "NEET Dropper",
     section: "A",
     rollNo: "",
-    schoolName: "Delhi Public School",
+    schoolName: "LV INSTITUTE",
   });
   const [actionLoading, setActionLoading] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const STANDARD_CLASSES = [
+    "NEET Dropper",
+    "JEE Dropper",
     "Class 6",
     "Class 7",
     "Class 8",
@@ -797,10 +799,10 @@ export function AdminTeacherManagement() {
                           onClick={() => {
                             setConvertingTeacher(teacher);
                             setConvertData({
-                              classGrade: "Class 8",
+                              classGrade: "NEET Dropper",
                               section: "A",
                               rollNo: "",
-                              schoolName: "Delhi Public School",
+                              schoolName: "LV INSTITUTE",
                             });
                           }}
                           title="Convert Role to Student"
@@ -1180,6 +1182,8 @@ export function AdminTeacherManagement() {
                   onChange={(e) => setConvertData({ ...convertData, classGrade: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-medium"
                 >
+                  <option value="NEET Dropper">NEET Dropper</option>
+                  <option value="JEE Dropper">JEE Dropper</option>
                   <option value="Class 4">Class 4</option>
                   <option value="Class 5">Class 5</option>
                   <option value="Class 6">Class 6</option>
@@ -1190,7 +1194,6 @@ export function AdminTeacherManagement() {
                   <option value="Class 11">Class 11</option>
                   <option value="Class 12">Class 12</option>
                   <option value="Class 11 & 12">Class 11 & 12</option>
-                  <option value="JEE / NEET Dropper">JEE / NEET Dropper</option>
                 </select>
               </div>
 
@@ -1214,7 +1217,7 @@ export function AdminTeacherManagement() {
                     type="text"
                     value={convertData.rollNo}
                     onChange={(e) => setConvertData({ ...convertData, rollNo: e.target.value })}
-                    placeholder="e.g. 15"
+                    placeholder="e.g. 1"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-indigo-500 font-medium"
                   />
                 </div>

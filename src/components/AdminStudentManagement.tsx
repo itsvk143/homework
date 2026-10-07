@@ -49,7 +49,7 @@ export function AdminStudentManagement() {
   const [convertData, setConvertData] = useState<any>({
     subjectSpecialty: "Mathematics",
     phone: "",
-    schoolName: "ClassBoard Academy",
+    schoolName: "LV INSTITUTE",
   });
   const [actionLoading, setActionLoading] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -340,15 +340,23 @@ export function AdminStudentManagement() {
           </div>
 
           <button
-            onClick={() => {
+            onClick={async () => {
+              let autoRoll = "1";
+              try {
+                const res = await fetch("/api/students/next-roll?classGrade=NEET%20Dropper&section=A");
+                if (res.ok) {
+                  const d = await res.json();
+                  if (d.nextRollNo) autoRoll = d.nextRollNo;
+                }
+              } catch (_) {}
               setFormData({
                 name: "",
                 email: "",
                 password: "student123",
-                classGrade: "Class 8",
+                classGrade: "NEET Dropper",
                 section: "A",
-                rollNo: "",
-                schoolName: "Delhi Public School",
+                rollNo: autoRoll,
+                schoolName: "LV INSTITUTE",
               });
               setShowAddModal(true);
             }}
@@ -564,7 +572,7 @@ export function AdminStudentManagement() {
                             setConvertData({
                               subjectSpecialty: "Mathematics",
                               phone: "",
-                              schoolName: "ClassBoard Academy",
+                              schoolName: "LV INSTITUTE",
                             });
                           }}
                           title="Convert Role to Teacher"
@@ -639,10 +647,23 @@ export function AdminStudentManagement() {
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Class *</label>
                   <select
-                    value={formData.classGrade || "Class 8"}
-                    onChange={(e) => setFormData({ ...formData, classGrade: e.target.value })}
+                    value={formData.classGrade || "NEET Dropper"}
+                    onChange={async (e) => {
+                      const newGrade = e.target.value;
+                      setFormData((prev: any) => ({ ...prev, classGrade: newGrade }));
+                      try {
+                        const sec = formData.section || "A";
+                        const res = await fetch(`/api/students/next-roll?classGrade=${encodeURIComponent(newGrade)}&section=${encodeURIComponent(sec)}`);
+                        if (res.ok) {
+                          const d = await res.json();
+                          if (d.nextRollNo) setFormData((prev: any) => ({ ...prev, rollNo: d.nextRollNo }));
+                        }
+                      } catch (_) {}
+                    }}
                     className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
                   >
+                    <option value="NEET Dropper">NEET Dropper</option>
+                    <option value="JEE Dropper">JEE Dropper</option>
                     <option value="Class 4">Class 4</option>
                     <option value="Class 5">Class 5</option>
                     <option value="Class 6">Class 6</option>
@@ -653,14 +674,24 @@ export function AdminStudentManagement() {
                     <option value="Class 11">Class 11</option>
                     <option value="Class 12">Class 12</option>
                     <option value="Class 11 & 12">Class 11 & 12</option>
-                    <option value="JEE / NEET Dropper">JEE / NEET Dropper</option>
                   </select>
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Section *</label>
                   <select
                     value={formData.section || "A"}
-                    onChange={(e) => setFormData({ ...formData, section: e.target.value })}
+                    onChange={async (e) => {
+                      const newSec = e.target.value;
+                      setFormData((prev: any) => ({ ...prev, section: newSec }));
+                      try {
+                        const gr = formData.classGrade || "NEET Dropper";
+                        const res = await fetch(`/api/students/next-roll?classGrade=${encodeURIComponent(gr)}&section=${encodeURIComponent(newSec)}`);
+                        if (res.ok) {
+                          const d = await res.json();
+                          if (d.nextRollNo) setFormData((prev: any) => ({ ...prev, rollNo: d.nextRollNo }));
+                        }
+                      } catch (_) {}
+                    }}
                     className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
                   >
                     <option value="A">Section A</option>
@@ -675,7 +706,7 @@ export function AdminStudentManagement() {
                     type="text"
                     value={formData.rollNo || ""}
                     onChange={(e) => setFormData({ ...formData, rollNo: e.target.value })}
-                    placeholder="e.g. 18"
+                    placeholder="e.g. 1"
                     className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
                   />
                 </div>
@@ -687,7 +718,7 @@ export function AdminStudentManagement() {
                   type="text"
                   value={formData.schoolName || ""}
                   onChange={(e) => setFormData({ ...formData, schoolName: e.target.value })}
-                  placeholder="e.g. Delhi Public School"
+                  placeholder="e.g. LV INSTITUTE"
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
                 />
               </div>
@@ -750,10 +781,12 @@ export function AdminStudentManagement() {
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Class</label>
                   <select
-                    value={formData.classGrade || "Class 8"}
+                    value={formData.classGrade || "NEET Dropper"}
                     onChange={(e) => setFormData({ ...formData, classGrade: e.target.value })}
                     className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
                   >
+                    <option value="NEET Dropper">NEET Dropper</option>
+                    <option value="JEE Dropper">JEE Dropper</option>
                     <option value="Class 4">Class 4</option>
                     <option value="Class 5">Class 5</option>
                     <option value="Class 6">Class 6</option>
@@ -764,7 +797,6 @@ export function AdminStudentManagement() {
                     <option value="Class 11">Class 11</option>
                     <option value="Class 12">Class 12</option>
                     <option value="Class 11 & 12">Class 11 & 12</option>
-                    <option value="JEE / NEET Dropper">JEE / NEET Dropper</option>
                   </select>
                 </div>
                 <div>

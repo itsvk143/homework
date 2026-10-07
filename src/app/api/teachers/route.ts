@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
+import { getNextRollNumber } from "@/lib/rollNumber";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -155,7 +156,7 @@ export async function POST(req: NextRequest) {
           create: {
             subjectSpecialty: subjectSpecialty?.trim() || "Mathematics & Science",
             phone: phone?.trim() || null,
-            bio: bio?.trim() || `Teacher at ${schoolName?.trim() || "ClassBoard"}`,
+            bio: bio?.trim() || `Teacher at ${schoolName?.trim() || "LV INSTITUTE"}`,
           },
         },
       },
@@ -238,6 +239,15 @@ export async function PUT(req: NextRequest) {
       await prisma.teacherStudentAssignment.deleteMany({ where: { teacherId: id } });
       await prisma.teacherProfile.deleteMany({ where: { userId: id } });
 
+      const targetGrade = classGrade?.trim() || "NEET Dropper";
+      const targetSection = section?.trim() || "A";
+      const targetSchool = schoolName?.trim() || "LV INSTITUTE";
+
+      let finalRollNo = rollNo?.trim();
+      if (!finalRollNo) {
+        finalRollNo = await getNextRollNumber(targetGrade, targetSection);
+      }
+
       // 2. Update user to STUDENT
       const updatedToStudent = await prisma.user.update({
         where: { id },
@@ -248,10 +258,10 @@ export async function PUT(req: NextRequest) {
           status: status || existingUser.status,
           studentProfile: {
             create: {
-              classGrade: classGrade?.trim() || "Class 8",
-              section: section?.trim() || "A",
-              rollNo: rollNo?.trim() || null,
-              schoolName: schoolName?.trim() || "Delhi Public School",
+              classGrade: targetGrade,
+              section: targetSection,
+              rollNo: finalRollNo,
+              schoolName: targetSchool,
             },
           },
         },
@@ -300,7 +310,7 @@ export async function PUT(req: NextRequest) {
           userId: id,
           subjectSpecialty: subjectSpecialty?.trim() || "Mathematics & Science",
           phone: phone?.trim() || null,
-          bio: bio?.trim() || `Teacher at ${schoolName || "ClassBoard"}`,
+          bio: bio?.trim() || `Teacher at ${schoolName || "LV INSTITUTE"}`,
         },
       });
     }

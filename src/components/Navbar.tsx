@@ -113,8 +113,8 @@ export function Navbar({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-bold text-lg tracking-tight text-slate-900">
-                ClassBoard
+              <span className="font-extrabold text-lg tracking-tight text-slate-900">
+                TRACKER
               </span>
               <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-200/60">
                 v2.0

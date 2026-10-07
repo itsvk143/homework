@@ -40,10 +40,10 @@ model StudentProfile {
   id           String   @id @default(cuid())
   userId       String   @unique
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  classGrade   String   @default("Class 8")
+  classGrade   String   @default("NEET Dropper")
   section      String   @default("A")
   rollNo       String?
-  schoolName   String   @default("Delhi Public School")
+  schoolName   String   @default("LV INSTITUTE")
   parentName   String?
   parentPhone  String?
   createdAt    DateTime @default(now())

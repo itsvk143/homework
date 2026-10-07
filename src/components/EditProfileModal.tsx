@@ -33,7 +33,7 @@ export function EditProfileModal({
 
   // Student specific fields
   const [classGrade, setClassGrade] = useState(
-    currentUser.studentProfile?.classGrade || "Class 8"
+    currentUser.studentProfile?.classGrade || "NEET Dropper"
   );
   const [section, setSection] = useState(
     currentUser.studentProfile?.section || "A"
@@ -44,7 +44,7 @@ export function EditProfileModal({
   const [schoolName, setSchoolName] = useState(
     currentUser.studentProfile?.schoolName ||
       currentUser.teacherProfile?.schoolName ||
-      "Delhi Public School"
+      "LV INSTITUTE"
   );
 
   // Teacher specific fields
@@ -186,7 +186,7 @@ export function EditProfileModal({
                     type="text"
                     value={schoolName}
                     onChange={(e) => setSchoolName(e.target.value)}
-                    placeholder="e.g. Delhi Public School"
+                    placeholder="e.g. LV INSTITUTE"
                     className="w-full pl-9 pr-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
                   />
                 </div>
@@ -202,6 +202,8 @@ export function EditProfileModal({
                     onChange={(e) => setClassGrade(e.target.value)}
                     className="w-full px-2 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-medium"
                   >
+                    <option value="NEET Dropper">NEET Dropper</option>
+                    <option value="JEE Dropper">JEE Dropper</option>
                     <option value="Class 4">Class 4</option>
                     <option value="Class 5">Class 5</option>
                     <option value="Class 6">Class 6</option>
@@ -212,7 +214,6 @@ export function EditProfileModal({
                     <option value="Class 11">Class 11</option>
                     <option value="Class 12">Class 12</option>
                     <option value="Class 11 & 12">Class 11 & 12</option>
-                    <option value="JEE / NEET Dropper">JEE / NEET Dropper</option>
                   </select>
                 </div>
 

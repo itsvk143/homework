@@ -1134,7 +1134,7 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
                     {selectedStudentProfile.name}
                   </h3>
                   <p className="text-xs text-slate-500">
-                    {selectedStudentProfile.studentProfile?.classGrade} • Roll #{selectedStudentProfile.studentProfile?.rollNo || "--"} • {selectedStudentProfile.studentProfile?.schoolName || "Delhi Public School"}
+                    {selectedStudentProfile.studentProfile?.classGrade} • Roll #{selectedStudentProfile.studentProfile?.rollNo || "--"} • {selectedStudentProfile.studentProfile?.schoolName || "LV INSTITUTE"}
                   </p>
                   {selectedStudentProfile.assignedTeachersAsStudent && selectedStudentProfile.assignedTeachersAsStudent.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">

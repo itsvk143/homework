@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logAuditEvent } from "@/lib/audit";
 import { isAdminEmail, SESSION_COOKIE_OPTIONS, createSessionToken } from "@/lib/auth";
+import { getNextRollNumber } from "@/lib/rollNumber";
 
 export async function POST(req: NextRequest) {
   try {
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
               subjectSpecialty:
                 subjectSpecialty?.trim() || "General Academic",
               phone: phone?.trim() || null,
-              bio: bio?.trim() || `Teacher at ${schoolName || "ClassBoard"}`,
+              bio: bio?.trim() || `Teacher at ${schoolName || "LV INSTITUTE"}`,
             },
           },
         },
@@ -104,6 +105,15 @@ export async function POST(req: NextRequest) {
         },
       });
     } else {
+      const targetGrade = classGrade?.trim() || "NEET Dropper";
+      const targetSection = section?.trim() || "A";
+      const targetSchool = schoolName?.trim() || "LV INSTITUTE";
+
+      let finalRollNo = rollNo?.trim();
+      if (!finalRollNo) {
+        finalRollNo = await getNextRollNumber(targetGrade, targetSection);
+      }
+
       newUser = await prisma.user.create({
         data: {
           name: name.trim(),
@@ -113,10 +123,10 @@ export async function POST(req: NextRequest) {
           status: "ACTIVE",
           studentProfile: {
             create: {
-              classGrade: classGrade?.trim() || "Class 8",
-              section: section?.trim() || "A",
-              rollNo: rollNo?.trim() || null,
-              schoolName: schoolName?.trim() || "Delhi Public School",
+              classGrade: targetGrade,
+              section: targetSection,
+              rollNo: finalRollNo,
+              schoolName: targetSchool,
             },
           },
         },

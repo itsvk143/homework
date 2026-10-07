@@ -102,7 +102,7 @@ function ChapterProgressContent() {
       <GlobalSearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
 
       <footer className="border-t border-slate-200/80 bg-white/50 py-4 text-center text-xs text-slate-400 print:hidden">
-        ClassBoard Academic Platform • Teacher Chapter Progress Matrix
+        TRACKER Academic Platform • Teacher Chapter Progress Matrix
       </footer>
     </div>
   );

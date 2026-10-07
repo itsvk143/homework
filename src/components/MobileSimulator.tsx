@@ -439,7 +439,7 @@ export function MobileSimulator({ currentUser, onRefreshData }: MobileSimulatorP
                       Hi, {currentUser?.name?.split(" ")[0] || "Student"} 👋
                     </h2>
                     <p className="text-[11px] text-slate-500">
-                      {currentUser?.studentProfile?.classGrade} • Delhi Public School
+                      {currentUser?.studentProfile?.classGrade} • {currentUser?.studentProfile?.schoolName || "LV INSTITUTE"}
                     </p>
                   </div>
                   <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs">
