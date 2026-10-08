@@ -25,6 +25,11 @@ export function AdminTeacherManagement() {
   const [teachers, setTeachers] = useState<any[]>(() => {
     if (typeof window !== "undefined") {
       try {
+        const persist = localStorage.getItem("cb_persistent_teachers");
+        if (persist) {
+          const list = JSON.parse(persist);
+          if (Array.isArray(list) && list.length > 0) return list;
+        }
         const cached = localStorage.getItem("cb_cached_teachers");
         if (cached) {
           const list = JSON.parse(cached);
@@ -37,7 +42,7 @@ export function AdminTeacherManagement() {
   const [loading, setLoading] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
       try {
-        const cached = localStorage.getItem("cb_cached_teachers");
+        const cached = localStorage.getItem("cb_persistent_teachers") || localStorage.getItem("cb_cached_teachers");
         if (cached) {
           const list = JSON.parse(cached);
           if (Array.isArray(list) && list.length > 0) return false;
@@ -112,22 +117,48 @@ export function AdminTeacherManagement() {
       const res = await fetch("/api/teachers", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        let loaded = data.teachers || [];
+        const serverList: any[] = data.teachers || [];
         if (typeof window !== "undefined") {
           try {
-            const raw = localStorage.getItem("cb_deleted_teacher_ids") || "[]";
-            const deletedList: string[] = JSON.parse(raw);
-            loaded = loaded.filter(
-              (t: any) =>
-                !deletedList.includes(t.id) &&
-                !deletedList.includes(t.email?.toLowerCase()) &&
-                t.email?.toLowerCase() !== "teacher@classboard.com" &&
-                t.email?.toLowerCase() !== "verma@classboard.com"
-            );
-            localStorage.setItem("cb_cached_teachers", JSON.stringify(loaded));
-          } catch {}
+            const rawDel = localStorage.getItem("cb_deleted_teacher_ids") || "[]";
+            const deletedList: string[] = JSON.parse(rawDel);
+            const rawPersist = localStorage.getItem("cb_persistent_teachers") || "[]";
+            const persistentList: any[] = JSON.parse(rawPersist);
+
+            const map = new Map<string, any>();
+            // 1. Add locally persisted teachers
+            persistentList.forEach((t) => {
+              const k = t.email?.toLowerCase();
+              if (k && !deletedList.includes(t.id) && !deletedList.includes(k) && k !== "teacher@classboard.com" && k !== "verma@classboard.com") {
+                map.set(k, t);
+              }
+            });
+            // 2. Merge server list
+            serverList.forEach((t) => {
+              const k = t.email?.toLowerCase();
+              if (k && !deletedList.includes(t.id) && !deletedList.includes(k) && k !== "teacher@classboard.com" && k !== "verma@classboard.com") {
+                map.set(k, { ...map.get(k), ...t });
+              }
+            });
+
+            const merged = Array.from(map.values());
+            setTeachers(merged);
+            localStorage.setItem("cb_persistent_teachers", JSON.stringify(merged));
+            localStorage.setItem("cb_cached_teachers", JSON.stringify(merged));
+
+            // 3. Auto-sync missing teachers back to this serverless container
+            const missingOnServer = merged.filter((m) => !serverList.some((s) => s.email?.toLowerCase() === m.email?.toLowerCase()));
+            if (missingOnServer.length > 0) {
+              fetch("/api/sync/roster", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ teachers: missingOnServer }),
+              }).catch(() => {});
+            }
+            return;
+          } catch (e) {}
         }
-        setTeachers(loaded);
+        setTeachers(serverList);
       }
     } catch (err) {
       console.error(err);
@@ -468,6 +499,15 @@ export function AdminTeacherManagement() {
         showNotification("success", "Teacher created successfully!");
         setShowAddModal(false);
         setFormData({});
+        if (data.teacher && typeof window !== "undefined") {
+          try {
+            const rawPersist = localStorage.getItem("cb_persistent_teachers") || "[]";
+            const persistentList: any[] = JSON.parse(rawPersist);
+            const updated = [data.teacher, ...persistentList.filter((t: any) => t.email?.toLowerCase() !== data.teacher.email?.toLowerCase())];
+            localStorage.setItem("cb_persistent_teachers", JSON.stringify(updated));
+            setTeachers(updated);
+          } catch {}
+        }
         fetchTeachers();
       } else {
         showNotification("error", data.error || "Failed to create teacher.");
@@ -559,6 +599,16 @@ export function AdminTeacherManagement() {
               deletedList.push(deletingTeacher.email.toLowerCase());
             }
             localStorage.setItem("cb_deleted_teacher_ids", JSON.stringify(deletedList));
+
+            const rawPersist = localStorage.getItem("cb_persistent_teachers") || "[]";
+            const persistentList: any[] = JSON.parse(rawPersist);
+            const filtered = persistentList.filter(
+              (t: any) =>
+                t.id !== deletingTeacher.id &&
+                t.email?.toLowerCase() !== deletingTeacher.email?.toLowerCase()
+            );
+            localStorage.setItem("cb_persistent_teachers", JSON.stringify(filtered));
+            setTeachers(filtered);
           } catch {}
         }
         setDeletingTeacher(null);

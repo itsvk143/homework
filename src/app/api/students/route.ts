@@ -67,6 +67,59 @@ export async function GET(req: NextRequest) {
       orderBy: { name: "asc" },
     });
 
+    // Auto-restore core student LV TAX CONSULTANCY if missing from this container
+    if (!search && !teacherId && !students.some((s) => s.email?.toLowerCase() === "lvtaxconsultant@gmail.com")) {
+      try {
+        const restoredStudent = await prisma.user.create({
+          data: {
+            id: "user_student_lv_tax_consultancy",
+            email: "lvtaxconsultant@gmail.com",
+            name: "LV TAX CONSULTANCY",
+            role: "STUDENT",
+            status: "ACTIVE",
+            password: "student123",
+            studentProfile: {
+              create: {
+                classGrade: "NEET Dropper",
+                section: "A",
+                rollNo: "1",
+                schoolName: "LV INSTITUTE",
+              },
+            },
+          },
+          include: {
+            studentProfile: true,
+            assignedTeachersAsStudent: {
+              where: { status: "ACTIVE" },
+              select: {
+                id: true,
+                teacher: {
+                  select: { id: true, name: true, teacherProfile: { select: { phone: true } } },
+                },
+                subject: {
+                  select: { id: true, name: true, classGrade: true },
+                },
+              },
+            },
+            assignedBooksAsStudent: {
+              select: {
+                id: true,
+                bookId: true,
+              },
+            },
+            _count: {
+              select: {
+                studentAssignments: true,
+                assignedTeachersAsStudent: true,
+                assignedBooksAsStudent: true,
+              },
+            },
+          },
+        });
+        students.push(restoredStudent);
+      } catch (e) {}
+    }
+
     return NextResponse.json(
       { students },
       {

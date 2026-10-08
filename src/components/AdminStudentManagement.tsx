@@ -25,6 +25,11 @@ export function AdminStudentManagement() {
   const [students, setStudents] = useState<any[]>(() => {
     if (typeof window !== "undefined") {
       try {
+        const persist = localStorage.getItem("cb_persistent_students");
+        if (persist) {
+          const list = JSON.parse(persist);
+          if (Array.isArray(list) && list.length > 0) return list;
+        }
         const cached = localStorage.getItem("cb_cached_students");
         if (cached) {
           const list = JSON.parse(cached);
@@ -37,7 +42,7 @@ export function AdminStudentManagement() {
   const [loading, setLoading] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
       try {
-        const cached = localStorage.getItem("cb_cached_students");
+        const cached = localStorage.getItem("cb_persistent_students") || localStorage.getItem("cb_cached_students");
         if (cached) {
           const list = JSON.parse(cached);
           if (Array.isArray(list) && list.length > 0) return false;
@@ -81,16 +86,51 @@ export function AdminStudentManagement() {
       if (students.length === 0) {
         setLoading(true);
       }
-      const res = await fetch("/api/students");
+      const res = await fetch("/api/students", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        const loaded = data.students || [];
-        setStudents(loaded);
+        const serverList: any[] = data.students || [];
         if (typeof window !== "undefined") {
           try {
-            localStorage.setItem("cb_cached_students", JSON.stringify(loaded));
-          } catch {}
+            const rawDel = localStorage.getItem("cb_deleted_student_ids") || "[]";
+            const deletedList: string[] = JSON.parse(rawDel);
+            const rawPersist = localStorage.getItem("cb_persistent_students") || "[]";
+            const persistentList: any[] = JSON.parse(rawPersist);
+
+            const map = new Map<string, any>();
+            // 1. Add locally persisted students
+            persistentList.forEach((s) => {
+              const k = s.email?.toLowerCase();
+              if (k && !deletedList.includes(s.id) && !deletedList.includes(k)) {
+                map.set(k, s);
+              }
+            });
+            // 2. Merge server list
+            serverList.forEach((s) => {
+              const k = s.email?.toLowerCase();
+              if (k && !deletedList.includes(s.id) && !deletedList.includes(k)) {
+                map.set(k, { ...map.get(k), ...s });
+              }
+            });
+
+            const merged = Array.from(map.values());
+            setStudents(merged);
+            localStorage.setItem("cb_persistent_students", JSON.stringify(merged));
+            localStorage.setItem("cb_cached_students", JSON.stringify(merged));
+
+            // 3. Auto-sync missing students back to this serverless container
+            const missingOnServer = merged.filter((m) => !serverList.some((s) => s.email?.toLowerCase() === m.email?.toLowerCase()));
+            if (missingOnServer.length > 0) {
+              fetch("/api/sync/roster", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ students: missingOnServer }),
+              }).catch(() => {});
+            }
+            return;
+          } catch (e) {}
         }
+        setStudents(serverList);
       }
     } catch (err) {
       console.error(err);
@@ -224,6 +264,15 @@ export function AdminStudentManagement() {
         showNotification("success", "Student registered successfully!");
         setShowAddModal(false);
         setFormData({});
+        if (data.student && typeof window !== "undefined") {
+          try {
+            const rawPersist = localStorage.getItem("cb_persistent_students") || "[]";
+            const persistentList: any[] = JSON.parse(rawPersist);
+            const updated = [data.student, ...persistentList.filter((s: any) => s.email?.toLowerCase() !== data.student.email?.toLowerCase())];
+            localStorage.setItem("cb_persistent_students", JSON.stringify(updated));
+            setStudents(updated);
+          } catch {}
+        }
         fetchStudents();
       } else {
         showNotification("error", data.error || "Failed to add student.");
@@ -306,6 +355,27 @@ export function AdminStudentManagement() {
       const data = await res.json();
       if (res.ok && data.success) {
         showNotification("success", "Student deleted successfully.");
+        if (typeof window !== "undefined") {
+          try {
+            const raw = localStorage.getItem("cb_deleted_student_ids") || "[]";
+            const deletedList: string[] = JSON.parse(raw);
+            if (!deletedList.includes(deletingStudent.id)) deletedList.push(deletingStudent.id);
+            if (deletingStudent.email && !deletedList.includes(deletingStudent.email.toLowerCase())) {
+              deletedList.push(deletingStudent.email.toLowerCase());
+            }
+            localStorage.setItem("cb_deleted_student_ids", JSON.stringify(deletedList));
+
+            const rawPersist = localStorage.getItem("cb_persistent_students") || "[]";
+            const persistentList: any[] = JSON.parse(rawPersist);
+            const filtered = persistentList.filter(
+              (s: any) =>
+                s.id !== deletingStudent.id &&
+                s.email?.toLowerCase() !== deletingStudent.email?.toLowerCase()
+            );
+            localStorage.setItem("cb_persistent_students", JSON.stringify(filtered));
+            setStudents(filtered);
+          } catch {}
+        }
         setDeletingStudent(null);
         fetchStudents();
       } else {

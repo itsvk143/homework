@@ -45,52 +45,70 @@ export async function GET(req: NextRequest) {
       orderBy: { name: "asc" },
     });
 
-    // Auto-restore core educator Astro Vikash ONLY if missing from results
-    if (!teachers.some((t) => t.email === "astrovikash07@gmail.com")) {
-      try {
-        const restored = await prisma.user.create({
-          data: {
-            id: "user_teacher_astro_vikash",
-            email: "astrovikash07@gmail.com",
-            name: "Astro Vikash",
-            role: "TEACHER",
-            status: "ACTIVE",
-            teacherProfile: {
-              create: {
-                subjectSpecialty: "Chemistry (NEET)",
-                phone: "+91 98765 43212",
-                bio: "Senior Chemistry Faculty specializing in Physical Chemistry & NEET.",
-              },
-            },
-          },
-          include: {
-            teacherProfile: true,
-            assignedStudentsAsTeacher: {
-              where: { status: "ACTIVE" },
-              select: {
-                id: true,
-                studentId: true,
-                subject: {
-                  select: {
-                    id: true,
-                    name: true,
-                    classGrade: true,
-                  },
+    // Auto-restore core educators if missing from this container
+    const coreFaculty = [
+      {
+        id: "user_teacher_vikash_kumar",
+        email: "cvksir07@gmail.com",
+        name: "VIKASH KUMAR",
+        specialty: "Mathematics & Science & Chemistry & Physics (Class 9, Class 10, Class 12, JEE / NEET Dropper, Class 11, Class 8, Class 7, Class 6)",
+        phone: "+91 98765 43210",
+      },
+      {
+        id: "user_teacher_laxmi_kumari",
+        email: "laxmeena01@gmail.com",
+        name: "laxmi kumari",
+        specialty: "Biology & English & Hindi & Social Science & Science (Class 6, Class 7, Class 8, Class 9, Class 10, Class 11, Class 12, JEE / NEET Dropper)",
+        phone: "+91 98765 43211",
+      },
+    ];
+
+    for (const cf of coreFaculty) {
+      if (!teachers.some((t) => t.email?.toLowerCase() === cf.email.toLowerCase())) {
+        try {
+          const restored = await prisma.user.create({
+            data: {
+              id: cf.id,
+              email: cf.email,
+              name: cf.name,
+              role: "TEACHER",
+              status: "ACTIVE",
+              password: "teacher123",
+              teacherProfile: {
+                create: {
+                  subjectSpecialty: cf.specialty,
+                  phone: cf.phone,
+                  bio: "Senior Educator at LV INSTITUTE",
                 },
               },
             },
-            _count: {
-              select: {
-                teacherAssignments: true,
-                assignedBooksAsTeacher: true,
-                assignedStudentsAsTeacher: true,
+            include: {
+              teacherProfile: true,
+              assignedStudentsAsTeacher: {
+                where: { status: "ACTIVE" },
+                select: {
+                  id: true,
+                  studentId: true,
+                  subject: {
+                    select: {
+                      id: true,
+                      name: true,
+                      classGrade: true,
+                    },
+                  },
+                },
+              },
+              _count: {
+                select: {
+                  teacherAssignments: true,
+                  assignedBooksAsTeacher: true,
+                  assignedStudentsAsTeacher: true,
+                },
               },
             },
-          },
-        });
-        teachers.push(restored);
-      } catch (e) {
-        // Ignored if already exists
+          });
+          teachers.push(restored);
+        } catch (e) {}
       }
     }
 

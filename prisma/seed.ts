@@ -52,25 +52,74 @@ async function main() {
     },
   });
 
-  const teacher3 = await prisma.user.upsert({
-    where: { email: "astrovikash07@gmail.com" },
+  const teacherVikash = await prisma.user.upsert({
+    where: { email: "cvksir07@gmail.com" },
     update: {
-      name: "Astro Vikash",
+      name: "VIKASH KUMAR",
       role: "TEACHER",
       status: "ACTIVE",
     },
     create: {
-      id: "user_teacher_astro_vikash",
-      email: "astrovikash07@gmail.com",
+      id: "user_teacher_vikash_kumar",
+      email: "cvksir07@gmail.com",
       password: "teacher123",
-      name: "Astro Vikash",
+      name: "VIKASH KUMAR",
       role: "TEACHER",
       status: "ACTIVE",
       teacherProfile: {
         create: {
-          subjectSpecialty: "Chemistry (NEET)",
-          phone: "+91 98765 43212",
-          bio: "Senior Chemistry Faculty specializing in Physical Chemistry & NEET.",
+          subjectSpecialty: "Mathematics & Science & Chemistry & Physics (Class 9, Class 10, Class 12, JEE / NEET Dropper, Class 11, Class 8, Class 7, Class 6)",
+          phone: "+91 98765 43210",
+          bio: "Senior Educator at LV INSTITUTE",
+        },
+      },
+    },
+  });
+
+  const teacherLaxmi = await prisma.user.upsert({
+    where: { email: "laxmeena01@gmail.com" },
+    update: {
+      name: "laxmi kumari",
+      role: "TEACHER",
+      status: "ACTIVE",
+    },
+    create: {
+      id: "user_teacher_laxmi_kumari",
+      email: "laxmeena01@gmail.com",
+      password: "teacher123",
+      name: "laxmi kumari",
+      role: "TEACHER",
+      status: "ACTIVE",
+      teacherProfile: {
+        create: {
+          subjectSpecialty: "Biology & English & Hindi & Social Science & Science (Class 6, Class 7, Class 8, Class 9, Class 10, Class 11, Class 12, JEE / NEET Dropper)",
+          phone: "+91 98765 43211",
+          bio: "Senior Educator at LV INSTITUTE",
+        },
+      },
+    },
+  });
+
+  const studentLvTax = await prisma.user.upsert({
+    where: { email: "lvtaxconsultant@gmail.com" },
+    update: {
+      name: "LV TAX CONSULTANCY",
+      role: "STUDENT",
+      status: "ACTIVE",
+    },
+    create: {
+      id: "user_student_lv_tax_consultancy",
+      email: "lvtaxconsultant@gmail.com",
+      password: "student123",
+      name: "LV TAX CONSULTANCY",
+      role: "STUDENT",
+      status: "ACTIVE",
+      studentProfile: {
+        create: {
+          classGrade: "NEET Dropper",
+          section: "A",
+          rollNo: "1",
+          schoolName: "LV INSTITUTE",
         },
       },
     },
