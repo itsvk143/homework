@@ -949,7 +949,7 @@ export const MASTER_BOOKS: SeedBook[] = [
     chapters: [
       {
         chapterNumber: 1,
-        name: "Stoichiometry & Mole Concept",
+        name: "Some Basic Concepts of Chemistry (Mole Concept)",
         exercises: [
           { name: "Level 1: Objective Problems", exerciseNumber: "1.1", totalQuestions: 50 },
           { name: "Level 2: Advanced Problems", exerciseNumber: "1.2", totalQuestions: 30 },
@@ -958,58 +958,74 @@ export const MASTER_BOOKS: SeedBook[] = [
       },
       {
         chapterNumber: 2,
-        name: "Atomic Structure",
+        name: "Structure of Atom",
         exercises: [
           { name: "Level 1: Objective Problems", exerciseNumber: "2.1", totalQuestions: 45 },
           { name: "Level 2: Advanced Problems", exerciseNumber: "2.2", totalQuestions: 25 },
+          { name: "Passage & Matching Type", exerciseNumber: "2.3", totalQuestions: 15 },
         ],
       },
       {
         chapterNumber: 3,
-        name: "Gaseous State",
+        name: "Chemical Thermodynamics",
         exercises: [
-          { name: "Level 1: Objective Problems", exerciseNumber: "3.1", totalQuestions: 40 },
-          { name: "Level 2: Advanced Problems", exerciseNumber: "3.2", totalQuestions: 25 },
+          { name: "Level 1: Objective Problems", exerciseNumber: "3.1", totalQuestions: 50 },
+          { name: "Level 2: Advanced Problems", exerciseNumber: "3.2", totalQuestions: 30 },
+          { name: "Passage & Matching Type", exerciseNumber: "3.3", totalQuestions: 15 },
         ],
       },
       {
         chapterNumber: 4,
-        name: "Thermodynamics & Thermochemistry",
+        name: "Chemical Equilibrium",
         exercises: [
-          { name: "Level 1: Objective Problems", exerciseNumber: "4.1", totalQuestions: 55 },
-          { name: "Level 2: Advanced Problems", exerciseNumber: "4.2", totalQuestions: 35 },
+          { name: "Level 1: Objective Problems", exerciseNumber: "4.1", totalQuestions: 40 },
+          { name: "Level 2: Advanced Problems", exerciseNumber: "4.2", totalQuestions: 25 },
+          { name: "Passage & Matching Type", exerciseNumber: "4.3", totalQuestions: 15 },
         ],
       },
       {
         chapterNumber: 5,
-        name: "Chemical Equilibrium",
+        name: "Ionic Equilibrium",
         exercises: [
-          { name: "Level 1: Objective Problems", exerciseNumber: "5.1", totalQuestions: 40 },
-          { name: "Level 2: Advanced Problems", exerciseNumber: "5.2", totalQuestions: 25 },
+          { name: "Level 1: Objective Problems", exerciseNumber: "5.1", totalQuestions: 50 },
+          { name: "Level 2: Advanced Problems", exerciseNumber: "5.2", totalQuestions: 30 },
+          { name: "Passage & Matching Type", exerciseNumber: "5.3", totalQuestions: 15 },
         ],
       },
       {
         chapterNumber: 6,
-        name: "Ionic Equilibrium",
+        name: "Redox Reactions",
         exercises: [
-          { name: "Level 1: Objective Problems", exerciseNumber: "6.1", totalQuestions: 50 },
-          { name: "Level 2: Advanced Problems", exerciseNumber: "6.2", totalQuestions: 30 },
+          { name: "Level 1: Objective Problems", exerciseNumber: "6.1", totalQuestions: 40 },
+          { name: "Level 2: Advanced Problems", exerciseNumber: "6.2", totalQuestions: 25 },
+          { name: "Passage & Matching Type", exerciseNumber: "6.3", totalQuestions: 15 },
         ],
       },
       {
         chapterNumber: 7,
-        name: "Electrochemistry",
+        name: "Solutions",
         exercises: [
           { name: "Level 1: Objective Problems", exerciseNumber: "7.1", totalQuestions: 45 },
           { name: "Level 2: Advanced Problems", exerciseNumber: "7.2", totalQuestions: 25 },
+          { name: "Passage & Matching Type", exerciseNumber: "7.3", totalQuestions: 15 },
         ],
       },
       {
         chapterNumber: 8,
+        name: "Electrochemistry",
+        exercises: [
+          { name: "Level 1: Objective Problems", exerciseNumber: "8.1", totalQuestions: 45 },
+          { name: "Level 2: Advanced Problems", exerciseNumber: "8.2", totalQuestions: 25 },
+          { name: "Passage & Matching Type", exerciseNumber: "8.3", totalQuestions: 15 },
+        ],
+      },
+      {
+        chapterNumber: 9,
         name: "Chemical Kinetics",
         exercises: [
-          { name: "Level 1: Objective Problems", exerciseNumber: "8.1", totalQuestions: 40 },
-          { name: "Level 2: Advanced Problems", exerciseNumber: "8.2", totalQuestions: 20 },
+          { name: "Level 1: Objective Problems", exerciseNumber: "9.1", totalQuestions: 45 },
+          { name: "Level 2: Advanced Problems", exerciseNumber: "9.2", totalQuestions: 25 },
+          { name: "Passage & Matching Type", exerciseNumber: "9.3", totalQuestions: 15 },
         ],
       },
     ],
@@ -1153,7 +1169,7 @@ export const MASTER_BOOKS: SeedBook[] = [
       },
       {
         chapterNumber: 3,
-        name: "Thermodynamics",
+        name: "Chemical Thermodynamics",
         exercises: [
           { name: "NCERT Based Objective Questions", exerciseNumber: "3.1", totalQuestions: 40 },
           { name: "Past Years NEET Questions", exerciseNumber: "3.2", totalQuestions: 20 },
@@ -1161,26 +1177,50 @@ export const MASTER_BOOKS: SeedBook[] = [
       },
       {
         chapterNumber: 4,
-        name: "Equilibrium (Chemical & Ionic)",
+        name: "Chemical Equilibrium",
         exercises: [
-          { name: "NCERT Based Objective Questions", exerciseNumber: "4.1", totalQuestions: 50 },
-          { name: "Past Years NEET Questions", exerciseNumber: "4.2", totalQuestions: 25 },
+          { name: "NCERT Based Objective Questions", exerciseNumber: "4.1", totalQuestions: 40 },
+          { name: "Past Years NEET Questions", exerciseNumber: "4.2", totalQuestions: 15 },
         ],
       },
       {
         chapterNumber: 5,
-        name: "Solutions",
+        name: "Ionic Equilibrium",
         exercises: [
-          { name: "NCERT Based Objective Questions", exerciseNumber: "5.1", totalQuestions: 40 },
-          { name: "Past Years NEET Questions", exerciseNumber: "5.2", totalQuestions: 15 },
+          { name: "NCERT Based Objective Questions", exerciseNumber: "5.1", totalQuestions: 45 },
+          { name: "Past Years NEET Questions", exerciseNumber: "5.2", totalQuestions: 20 },
         ],
       },
       {
         chapterNumber: 6,
+        name: "Redox Reactions",
+        exercises: [
+          { name: "NCERT Based Objective Questions", exerciseNumber: "6.1", totalQuestions: 35 },
+          { name: "Past Years NEET Questions", exerciseNumber: "6.2", totalQuestions: 15 },
+        ],
+      },
+      {
+        chapterNumber: 7,
+        name: "Solutions",
+        exercises: [
+          { name: "NCERT Based Objective Questions", exerciseNumber: "7.1", totalQuestions: 40 },
+          { name: "Past Years NEET Questions", exerciseNumber: "7.2", totalQuestions: 15 },
+        ],
+      },
+      {
+        chapterNumber: 8,
         name: "Electrochemistry",
         exercises: [
-          { name: "NCERT Based Objective Questions", exerciseNumber: "6.1", totalQuestions: 40 },
-          { name: "Past Years NEET Questions", exerciseNumber: "6.2", totalQuestions: 15 },
+          { name: "NCERT Based Objective Questions", exerciseNumber: "8.1", totalQuestions: 40 },
+          { name: "Past Years NEET Questions", exerciseNumber: "8.2", totalQuestions: 15 },
+        ],
+      },
+      {
+        chapterNumber: 9,
+        name: "Chemical Kinetics",
+        exercises: [
+          { name: "NCERT Based Objective Questions", exerciseNumber: "9.1", totalQuestions: 40 },
+          { name: "Past Years NEET Questions", exerciseNumber: "9.2", totalQuestions: 15 },
         ],
       },
     ],

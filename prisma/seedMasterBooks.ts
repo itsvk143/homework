@@ -80,6 +80,14 @@ export async function seedMasterBooks() {
             status: "ACTIVE",
           },
         });
+      } else if (chapter.name !== chData.name) {
+        chapter = await prisma.chapter.update({
+          where: { id: chapter.id },
+          data: {
+            name: chData.name,
+            displayOrder: chData.chapterNumber,
+          },
+        });
       }
 
       for (const exData of chData.exercises) {
