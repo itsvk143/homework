@@ -515,7 +515,9 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
                           </td>
 
                           <td className="py-3 px-4">
-                            <span className="font-semibold text-slate-800">{hw.subject.name}</span>
+                            <span className="font-semibold text-slate-800">
+                              {hw.subject.name} {hw.subject.classGrade ? `(${hw.subject.classGrade})` : ""}
+                            </span>
                             <span className="text-[11px] text-slate-500 block truncate max-w-[160px]">
                               {hw.book.name}
                             </span>
@@ -710,7 +712,7 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
               >
                 {teacherAuthorizedSubjects.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name}
+                    {s.name} ({s.classGrade || "All Grades"})
                   </option>
                 ))}
               </select>

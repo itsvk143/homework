@@ -16,6 +16,13 @@ import {
   Award,
   BarChart3,
   Search,
+  GraduationCap,
+  UserCheck,
+  Atom,
+  FlaskConical,
+  Dna,
+  Calculator,
+  School,
 } from "lucide-react";
 import { QuickProgressModal } from "./QuickProgressModal";
 import { ProofUploadModal } from "./ProofUploadModal";
@@ -30,6 +37,7 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
   const [subjectFilter, setSubjectFilter] = useState<string>("ALL");
   const [homeworkList, setHomeworkList] = useState<any[]>([]);
   const [studentBooks, setStudentBooks] = useState<any[]>([]);
+  const [facultyAssignments, setFacultyAssignments] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Modals state
@@ -37,14 +45,15 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
   const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
   const [isProofModalOpen, setIsProofModalOpen] = useState(false);
 
-  // Fetch homework and books
+  // Fetch homework, books and assigned faculty
   const fetchData = async () => {
     if (!currentUser) return;
     setLoading(true);
     try {
-      const [hwRes, booksRes] = await Promise.all([
+      const [hwRes, booksRes, assignRes] = await Promise.all([
         fetch(`/api/homework?studentId=${currentUser.id}`),
         fetch(`/api/student-books?studentId=${currentUser.id}`),
+        fetch(`/api/admin/teacher-student-assignments?studentId=${currentUser.id}`),
       ]);
 
       if (hwRes.ok) {
@@ -54,6 +63,10 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
       if (booksRes.ok) {
         const bData = await booksRes.json();
         setStudentBooks(bData.studentBooks || []);
+      }
+      if (assignRes.ok) {
+        const aData = await assignRes.json();
+        setFacultyAssignments(aData.assignments || []);
       }
     } catch (err) {
       console.error(err);
@@ -122,16 +135,40 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
     new Set(studentBooks.map((sb) => JSON.stringify(sb.book.subject)))
   ).map((s) => JSON.parse(s));
 
+  // Student academic placement details
+  const studentGrade = currentUser?.studentProfile?.classGrade || "NEET Dropper";
+  const studentSection = currentUser?.studentProfile?.section || "A";
+  const studentRoll = currentUser?.studentProfile?.rollNo || "--";
+
+  // Determine subjects for student's academic track according to rules:
+  // Physics & Chemistry: Class 11, Class 11 NEET, Class 11 JEE, NEET Dropper, Class 12, Class 12 NEET, Class 12 JEE, JEE Dropper
+  // Biology: Class 11, Class 11 NEET, NEET Dropper, Class 12, Class 12 NEET
+  // Mathematics: Class 11, Class 11 JEE, Class 12, Class 12 JEE, JEE Dropper
+  const isNEETTrack = studentGrade.toLowerCase().includes("neet") || (!studentGrade.toLowerCase().includes("jee") && !studentGrade.includes("Class 4") && !studentGrade.includes("Class 5") && !studentGrade.includes("Class 6") && !studentGrade.includes("Class 7") && !studentGrade.includes("Class 8") && !studentGrade.includes("Class 9") && !studentGrade.includes("Class 10"));
+  const isJEETrack = studentGrade.toLowerCase().includes("jee");
+
+  const streamSubjects: Array<{ name: string; classGrade: string; color: string; icon: string; badge: string }> = [
+    { name: "Physics", classGrade: studentGrade, color: "#2563EB", icon: "atom", badge: "Core Science" },
+    { name: "Chemistry", classGrade: studentGrade, color: "#D97706", icon: "flask-conical", badge: "Core Science" },
+  ];
+
+  if (isNEETTrack || (!isJEETrack && (studentGrade.includes("11") || studentGrade.includes("12") || studentGrade.toLowerCase().includes("dropper")))) {
+    streamSubjects.push({ name: "Biology", classGrade: studentGrade, color: "#059669", icon: "dna", badge: "Medical Track" });
+  }
+  if (isJEETrack || (!isNEETTrack && (studentGrade.includes("11") || studentGrade.includes("12")))) {
+    streamSubjects.push({ name: "Mathematics", classGrade: studentGrade, color: "#4F46E5", icon: "calculator", badge: "Engineering Track" });
+  }
+
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
       <div className="relative overflow-hidden rounded-3xl gradient-brand p-6 sm:p-8 text-white shadow-xl shadow-indigo-500/15">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold text-white/90 border border-white/20">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold text-white/90 border border-white/20">
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
               <span>
-                {currentUser?.studentProfile?.schoolName || "LV INSTITUTE"} • {currentUser?.studentProfile?.classGrade}-{currentUser?.studentProfile?.section}
+                {currentUser?.studentProfile?.schoolName || "LV INSTITUTE"} • {studentGrade} • Section {studentSection} • Roll #{studentRoll}
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
@@ -166,6 +203,97 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* MY ACADEMIC CLASS & FACULTY PANEL */}
+      <div className="bg-white rounded-3xl border border-slate-200/90 p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center font-black">
+              <GraduationCap className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-slate-900">
+                  Enrolled Class: <span className="text-indigo-600">{studentGrade}</span>
+                </h2>
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Section {studentSection}
+                </span>
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  Roll #{studentRoll}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Academic Curriculum & Assigned Faculty for {studentGrade}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200/80">
+            <School className="w-4 h-4 text-slate-400" />
+            <span>{currentUser?.studentProfile?.schoolName || "LV INSTITUTE"}</span>
+          </div>
+        </div>
+
+        {/* Subjects Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {streamSubjects.map((sub) => {
+            const assignment = facultyAssignments.find(
+              (a) => a.subject?.name?.toLowerCase() === sub.name.toLowerCase()
+            );
+
+            return (
+              <div
+                key={sub.name}
+                className="p-4 rounded-2xl border border-slate-200/80 bg-slate-50/60 hover:bg-white hover:border-indigo-200 transition-all flex flex-col justify-between space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className="w-8 h-8 rounded-xl text-white flex items-center justify-center font-bold shadow-2xs"
+                      style={{ backgroundColor: sub.color }}
+                    >
+                      {sub.name === "Physics" ? (
+                        <Atom className="w-4 h-4" />
+                      ) : sub.name === "Chemistry" ? (
+                        <FlaskConical className="w-4 h-4" />
+                      ) : sub.name === "Biology" ? (
+                        <Dna className="w-4 h-4" />
+                      ) : (
+                        <Calculator className="w-4 h-4" />
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-xs">{sub.name}</h3>
+                      <span className="text-[10px] font-semibold text-slate-500">
+                        {studentGrade}
+                      </span>
+                    </div>
+                  </div>
+
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white text-slate-600 border border-slate-200 shadow-2xs">
+                    {sub.badge}
+                  </span>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs">
+                  <span className="text-[11px] text-slate-500 font-medium">Faculty:</span>
+                  {assignment ? (
+                    <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
+                      <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{assignment.teacher?.name}</span>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                      In Assignment
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -220,7 +348,7 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
                         className="px-2 py-0.5 rounded-md text-[11px] font-bold text-white"
                         style={{ backgroundColor: hw.subject.color }}
                       >
-                        {hw.subject.name}
+                        {hw.subject.name} {hw.subject.classGrade ? `• ${hw.subject.classGrade}` : ""}
                       </span>
                       <h3 className="text-base font-bold text-slate-900 mt-2">
                         {hw.book.name} — Chapter {hw.chapter.chapterNumber}
@@ -355,7 +483,7 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
                 <option value="ALL">All Subjects</option>
                 {subjects.map((sub: any) => (
                   <option key={sub.id} value={sub.id}>
-                    {sub.name}
+                    {sub.name} {sub.classGrade ? `(${sub.classGrade})` : ""}
                   </option>
                 ))}
               </select>
@@ -392,7 +520,7 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
                           className="px-2 py-0.5 rounded text-[10px] font-bold text-white"
                           style={{ backgroundColor: hw.subject.color }}
                         >
-                          {hw.subject.name}
+                          {hw.subject.name} {hw.subject.classGrade ? `• ${hw.subject.classGrade}` : ""}
                         </span>
 
                         <span
@@ -518,7 +646,7 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
                         className="px-2 py-0.5 rounded text-[10px] font-bold text-white inline-block"
                         style={{ backgroundColor: b.subject.color }}
                       >
-                        {b.subject.name}
+                        {b.subject.name} {b.classGrade ? `• ${b.classGrade}` : ""}
                       </span>
                       <h3 className="text-base font-bold text-slate-900 mt-1">{b.name}</h3>
                       <p className="text-xs text-slate-500">

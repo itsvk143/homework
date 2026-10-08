@@ -25,6 +25,11 @@ export async function GET(req: NextRequest) {
       status: "ACTIVE",
     };
 
+    // If student is requesting, scope to their own assignments
+    if (user.role === "STUDENT") {
+      whereClause.studentId = user.id;
+    }
+
     if (teacherId) whereClause.teacherId = teacherId;
     if (studentId) whereClause.studentId = studentId;
     if (subjectId) whereClause.subjectId = subjectId;
