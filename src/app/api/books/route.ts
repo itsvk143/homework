@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
           ],
         });
       } else if (lower.includes("jee") && lower.includes("drop")) {
-        // Books of JEE Dropper and Class 11 & 12 JEE
+        // Books of JEE Dropper, Class 11 & 12 JEE, and all JEE exam books
         andClauses.push({
           OR: [
             { classGrade: "JEE Dropper" },
@@ -86,6 +86,8 @@ export async function GET(req: NextRequest) {
               classGrade: "Class 11 & 12",
               OR: [{ curriculumType: "JEE" }, { exam: "JEE" }, { name: { contains: "JEE" } }],
             },
+            { curriculumType: "JEE" },
+            { exam: "JEE" },
           ],
         });
       } else if (lower === "class 11 neet") {
@@ -113,7 +115,7 @@ export async function GET(req: NextRequest) {
           ],
         });
       } else if (lower.includes("neet") && lower.includes("drop")) {
-        // Books of NEET Dropper and Class 11 & 12 NEET
+        // Books of NEET Dropper, Class 11 & 12 NEET, and all NEET exam books
         andClauses.push({
           OR: [
             { classGrade: "NEET Dropper" },
@@ -121,6 +123,8 @@ export async function GET(req: NextRequest) {
               classGrade: "Class 11 & 12",
               OR: [{ curriculumType: "NEET" }, { exam: "NEET" }, { name: { contains: "NEET" } }],
             },
+            { curriculumType: "NEET" },
+            { exam: "NEET" },
           ],
         });
       } else {

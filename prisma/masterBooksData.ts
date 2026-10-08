@@ -1311,4 +1311,376 @@ export const MASTER_BOOKS: SeedBook[] = [
       },
     ],
   },
+
+  // ==========================================
+  // NEET BIOLOGY: SHRI BALAJI PUBLICATIONS (DR. SHADAB ANSARI)
+  // ==========================================
+  {
+    bookCode: "NEET_BIOLOGY_CLASS_11_SHADAB_ANSARI",
+    name: "NCERT Biology Booster for NEET - Class 11 (Volume 1)",
+    curriculumType: "NEET",
+    bookType: "COMPETITIVE",
+    exam: "NEET",
+    branch: "Botany & Zoology",
+    subjectName: "Biology",
+    subjectCode: "BIO_NEET",
+    classGrade: "Class 11",
+    author: "Shadab Ansari",
+    publisher: "Shri Balaji Publications",
+    edition: "2025–26 Edition",
+    language: "English",
+    coverUrl: "https://images.unsplash.com/photo-1530026405186-ed1f139313f8?w=200&auto=format&fit=crop&q=80",
+    description: "NCERT Biology Booster Volume 1 for NEET by Shadab Ansari Sir (Shri Balaji Publications). Strictly aligned with latest NTA rationalised syllabus across Diversity in the Living World, Structural Organisation, Cell Biology, Plant Physiology, and Human Physiology.",
+    chapters: [
+      // Unit I: Diversity in the Living World
+      {
+        chapterNumber: 1,
+        name: "The Living World",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "1.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "1.2", totalQuestions: 20 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "1.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "1.4", totalQuestions: 25 },
+        ],
+      },
+      {
+        chapterNumber: 2,
+        name: "Biological Classification",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "2.1", totalQuestions: 40 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "2.2", totalQuestions: 25 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "2.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "2.4", totalQuestions: 30 },
+        ],
+      },
+      {
+        chapterNumber: 3,
+        name: "Plant Kingdom",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "3.1", totalQuestions: 40 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "3.2", totalQuestions: 25 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "3.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "3.4", totalQuestions: 30 },
+        ],
+      },
+      {
+        chapterNumber: 4,
+        name: "Animal Kingdom",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "4.1", totalQuestions: 45 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "4.2", totalQuestions: 25 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "4.3", totalQuestions: 25 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "4.4", totalQuestions: 30 },
+        ],
+      },
+      // Unit II: Structural Organisation in Plants and Animals
+      {
+        chapterNumber: 5,
+        name: "Morphology of Flowering Plants",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "5.1", totalQuestions: 40 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "5.2", totalQuestions: 25 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "5.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "5.4", totalQuestions: 25 },
+        ],
+      },
+      {
+        chapterNumber: 6,
+        name: "Anatomy of Flowering Plants",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "6.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "6.2", totalQuestions: 20 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "6.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "6.4", totalQuestions: 25 },
+        ],
+      },
+      {
+        chapterNumber: 7,
+        name: "Structural Organisation in Animals",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "7.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "7.2", totalQuestions: 20 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "7.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "7.4", totalQuestions: 25 },
+        ],
+      },
+      // Unit III: Cell: Structure and Functions
+      {
+        chapterNumber: 8,
+        name: "Cell: The Unit of Life",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "8.1", totalQuestions: 40 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "8.2", totalQuestions: 25 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "8.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "8.4", totalQuestions: 30 },
+        ],
+      },
+      {
+        chapterNumber: 9,
+        name: "Biomolecules",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "9.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "9.2", totalQuestions: 25 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "9.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "9.4", totalQuestions: 25 },
+        ],
+      },
+      {
+        chapterNumber: 10,
+        name: "Cell Cycle and Cell Division",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "10.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "10.2", totalQuestions: 20 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "10.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "10.4", totalQuestions: 25 },
+        ],
+      },
+      // Unit IV: Plant Physiology
+      {
+        chapterNumber: 11,
+        name: "Photosynthesis in Higher Plants",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "11.1", totalQuestions: 40 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "11.2", totalQuestions: 25 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "11.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "11.4", totalQuestions: 30 },
+        ],
+      },
+      {
+        chapterNumber: 12,
+        name: "Respiration in Plants",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "12.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "12.2", totalQuestions: 20 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "12.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "12.4", totalQuestions: 25 },
+        ],
+      },
+      {
+        chapterNumber: 13,
+        name: "Plant Growth and Development",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "13.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "13.2", totalQuestions: 20 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "13.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "13.4", totalQuestions: 25 },
+        ],
+      },
+      // Unit V: Human Physiology
+      {
+        chapterNumber: 14,
+        name: "Breathing and Exchange of Gases",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "14.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "14.2", totalQuestions: 20 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "14.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "14.4", totalQuestions: 25 },
+        ],
+      },
+      {
+        chapterNumber: 15,
+        name: "Body Fluids and Circulation",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "15.1", totalQuestions: 40 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "15.2", totalQuestions: 25 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "15.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "15.4", totalQuestions: 30 },
+        ],
+      },
+      {
+        chapterNumber: 16,
+        name: "Excretory Products and their Elimination",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "16.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "16.2", totalQuestions: 20 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "16.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "16.4", totalQuestions: 25 },
+        ],
+      },
+      {
+        chapterNumber: 17,
+        name: "Locomotion and Movement",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "17.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "17.2", totalQuestions: 20 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "17.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "17.4", totalQuestions: 25 },
+        ],
+      },
+      {
+        chapterNumber: 18,
+        name: "Neural Control and Coordination",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "18.1", totalQuestions: 40 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "18.2", totalQuestions: 25 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "18.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "18.4", totalQuestions: 25 },
+        ],
+      },
+      {
+        chapterNumber: 19,
+        name: "Chemical Coordination and Integration",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "19.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "19.2", totalQuestions: 20 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "19.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "19.4", totalQuestions: 25 },
+        ],
+      },
+    ],
+  },
+  {
+    bookCode: "NEET_BIOLOGY_CLASS_12_SHADAB_ANSARI",
+    name: "NCERT Biology Booster for NEET - Class 12 (Volume 2)",
+    curriculumType: "NEET",
+    bookType: "COMPETITIVE",
+    exam: "NEET",
+    branch: "Botany & Zoology",
+    subjectName: "Biology",
+    subjectCode: "BIO_NEET",
+    classGrade: "Class 12",
+    author: "Shadab Ansari",
+    publisher: "Shri Balaji Publications",
+    edition: "2025–26 Edition",
+    language: "English",
+    coverUrl: "https://images.unsplash.com/photo-1579154204601-01588f351e67?w=200&auto=format&fit=crop&q=80",
+    description: "NCERT Biology Booster Volume 2 for NEET by Shadab Ansari Sir (Shri Balaji Publications). Strictly aligned with latest NTA rationalised syllabus across Reproduction, Genetics & Evolution, Biology in Human Welfare, Biotechnology, and Ecology.",
+    chapters: [
+      // Unit VI: Reproduction
+      {
+        chapterNumber: 1,
+        name: "Sexual Reproduction in Flowering Plants",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "1.1", totalQuestions: 40 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "1.2", totalQuestions: 25 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "1.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "1.4", totalQuestions: 30 },
+        ],
+      },
+      {
+        chapterNumber: 2,
+        name: "Human Reproduction",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "2.1", totalQuestions: 40 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "2.2", totalQuestions: 25 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "2.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "2.4", totalQuestions: 30 },
+        ],
+      },
+      {
+        chapterNumber: 3,
+        name: "Reproductive Health",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "3.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "3.2", totalQuestions: 20 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "3.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "3.4", totalQuestions: 25 },
+        ],
+      },
+      // Unit VII: Genetics and Evolution
+      {
+        chapterNumber: 4,
+        name: "Principles of Inheritance and Variation",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "4.1", totalQuestions: 45 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "4.2", totalQuestions: 25 },
+          { name: "Exercise 3: Pedigree & Diagram MCQs", exerciseNumber: "4.3", totalQuestions: 25 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "4.4", totalQuestions: 35 },
+        ],
+      },
+      {
+        chapterNumber: 5,
+        name: "Molecular Basis of Inheritance",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "5.1", totalQuestions: 45 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "5.2", totalQuestions: 25 },
+          { name: "Exercise 3: Diagram & Mechanism MCQs", exerciseNumber: "5.3", totalQuestions: 25 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "5.4", totalQuestions: 35 },
+        ],
+      },
+      {
+        chapterNumber: 6,
+        name: "Evolution",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "6.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "6.2", totalQuestions: 20 },
+          { name: "Exercise 3: Match the Following & Diagram MCQs", exerciseNumber: "6.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "6.4", totalQuestions: 25 },
+        ],
+      },
+      // Unit VIII: Biology in Human Welfare
+      {
+        chapterNumber: 7,
+        name: "Human Health and Disease",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "7.1", totalQuestions: 40 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "7.2", totalQuestions: 25 },
+          { name: "Exercise 3: Life Cycle & Diagram MCQs", exerciseNumber: "7.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "7.4", totalQuestions: 30 },
+        ],
+      },
+      {
+        chapterNumber: 8,
+        name: "Microbes in Human Welfare",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "8.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "8.2", totalQuestions: 20 },
+          { name: "Exercise 3: Match the Following & Application MCQs", exerciseNumber: "8.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "8.4", totalQuestions: 25 },
+        ],
+      },
+      // Unit IX: Biotechnology
+      {
+        chapterNumber: 9,
+        name: "Biotechnology: Principles and Processes",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "9.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "9.2", totalQuestions: 20 },
+          { name: "Exercise 3: Vector & Process Diagram MCQs", exerciseNumber: "9.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "9.4", totalQuestions: 25 },
+        ],
+      },
+      {
+        chapterNumber: 10,
+        name: "Biotechnology and its Applications",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "10.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "10.2", totalQuestions: 20 },
+          { name: "Exercise 3: Match the Following & Case MCQs", exerciseNumber: "10.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "10.4", totalQuestions: 25 },
+        ],
+      },
+      // Unit X: Ecology
+      {
+        chapterNumber: 11,
+        name: "Organisms and Populations",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "11.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "11.2", totalQuestions: 20 },
+          { name: "Exercise 3: Curves & Interaction MCQs", exerciseNumber: "11.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "11.4", totalQuestions: 25 },
+        ],
+      },
+      {
+        chapterNumber: 12,
+        name: "Ecosystem",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "12.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "12.2", totalQuestions: 20 },
+          { name: "Exercise 3: Ecological Pyramids & Nutrient Cycles", exerciseNumber: "12.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "12.4", totalQuestions: 25 },
+        ],
+      },
+      {
+        chapterNumber: 13,
+        name: "Biodiversity and Conservation",
+        exercises: [
+          { name: "Exercise 1: NCERT Line By Line MCQs", exerciseNumber: "13.1", totalQuestions: 35 },
+          { name: "Exercise 2: Assertion & Reason / Statement MCQs", exerciseNumber: "13.2", totalQuestions: 20 },
+          { name: "Exercise 3: Match the Following & Conservation MCQs", exerciseNumber: "13.3", totalQuestions: 20 },
+          { name: "Exercise 4: NEET Past Years & Rank Booster", exerciseNumber: "13.4", totalQuestions: 25 },
+        ],
+      },
+    ],
+  },
 ];

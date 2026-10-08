@@ -1040,24 +1040,41 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
 
               const isStudentEligibleForBook = (stu: any) => {
                 const grade = (stu.studentProfile?.classGrade || "").toLowerCase();
+                const bookGrade = (assigningBook?.classGrade || "").toLowerCase();
+                const isDropper = grade.includes("drop") || grade.includes("droper");
+
                 if (isAssigningJEE) {
+                  if (isDropper && (grade.includes("jee") || !grade.includes("neet"))) return true;
+                  if (bookGrade === "class 11") {
+                    return grade === "class 11" || grade === "class 11 jee" || isDropper;
+                  }
+                  if (bookGrade === "class 12") {
+                    return grade === "class 12" || grade === "class 12 jee" || isDropper;
+                  }
                   return (
                     grade === "class 11" ||
                     grade === "class 12" ||
                     grade === "class 11 jee" ||
                     grade === "class 12 jee" ||
                     grade.includes("jee") ||
-                    (grade.includes("jee") && grade.includes("drop"))
+                    isDropper
                   );
                 }
                 if (isAssigningNEET) {
+                  if (isDropper && (grade.includes("neet") || !grade.includes("jee"))) return true;
+                  if (bookGrade === "class 11") {
+                    return grade === "class 11" || grade === "class 11 neet" || isDropper;
+                  }
+                  if (bookGrade === "class 12") {
+                    return grade === "class 12" || grade === "class 12 neet" || isDropper;
+                  }
                   return (
                     grade === "class 11" ||
                     grade === "class 12" ||
                     grade === "class 11 neet" ||
                     grade === "class 12 neet" ||
                     grade.includes("neet") ||
-                    (grade.includes("neet") && grade.includes("drop"))
+                    isDropper
                   );
                 }
                 if (assigningBook?.classGrade) {
