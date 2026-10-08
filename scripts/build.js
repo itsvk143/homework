@@ -1,6 +1,10 @@
 // scripts/build.js
+require("dotenv").config();
+
+const DEFAULT_MONGO_URL = "mongodb+srv://sunnykumarvermakj_db_user:mOiHEYTWi74QIPLV@lvtracker.k4hti6i.mongodb.net/lvtracker?retryWrites=true&w=majority&appName=lvtracker";
+
 if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = "file:./dev.db";
+  process.env.DATABASE_URL = process.env.MONGODB_URI || DEFAULT_MONGO_URL;
 }
 
 const { execSync } = require("child_process");
@@ -11,10 +15,10 @@ try {
   console.log("1. Generating Prisma Client...");
   execSync("npx prisma generate", { stdio: "inherit", env: process.env });
 
-  console.log("2. Synchronizing SQLite database schema...");
+  console.log("2. Synchronizing MongoDB database schema...");
   execSync("npx prisma db push --accept-data-loss", { stdio: "inherit", env: process.env });
 
-  console.log("3. Seeding demo users and initial assignments...");
+  console.log("3. Seeding users and initial configurations...");
   execSync("npx tsx prisma/seed.ts", { stdio: "inherit", env: process.env });
 
   console.log("4. Seeding Master Book Library (NCERT + JEE/NEET)...");

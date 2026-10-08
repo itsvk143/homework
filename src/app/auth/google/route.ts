@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
     const isAdmin = isAdminEmail(email);
 
     // 8. Find corresponding application user by permanent google_provider_id
-    let user = await prisma.user.findUnique({
+    let user = await prisma.user.findFirst({
       where: { google_provider_id: googleSub },
       include: {
         studentProfile: true,

@@ -3,18 +3,18 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id                 String   @id @default(cuid())
+  id                 String   @id @default(cuid()) @map("_id")
   email              String   @unique
   password           String?
   name               String
   role               String   @default("STUDENT") // ADMIN, TEACHER, STUDENT
   avatarUrl          String?
-  google_provider_id String?  @unique
+  google_provider_id String?
   status             String   @default("ACTIVE") // ACTIVE, INACTIVE, ARCHIVED
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -37,7 +37,7 @@ model User {
 }
 
 model StudentProfile {
-  id           String   @id @default(cuid())
+  id           String   @id @default(cuid()) @map("_id")
   userId       String   @unique
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   classGrade   String   @default("NEET Dropper")
@@ -51,7 +51,7 @@ model StudentProfile {
 }
 
 model TeacherProfile {
-  id               String   @id @default(cuid())
+  id               String   @id @default(cuid()) @map("_id")
   userId           String   @unique
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   subjectSpecialty String   @default("Mathematics & Science")
@@ -62,7 +62,7 @@ model TeacherProfile {
 }
 
 model Subject {
-  id          String   @id @default(cuid())
+  id          String   @id @default(cuid()) @map("_id")
   name        String
   classGrade  String   @default("Class 8")
   code        String?
@@ -79,10 +79,10 @@ model Subject {
 }
 
 model Book {
-  id             String   @id @default(cuid())
+  id             String   @id @default(cuid()) @map("_id")
   subjectId      String
   subject        Subject  @relation(fields: [subjectId], references: [id], onDelete: Restrict)
-  bookCode       String?  @unique // Idempotent key, e.g. NCERT_CLASS_10_MATHEMATICS
+  bookCode       String?  // Idempotent key, e.g. NCERT_CLASS_10_MATHEMATICS
   curriculumType String   @default("NCERT") // NCERT, JEE, NEET, CBSE, ICSE, OTHER
   bookType       String   @default("NCERT") // NCERT, REFERENCE, COMPETITIVE, SCHOOL, OTHER
   exam           String?  // JEE, NEET, etc.
@@ -107,7 +107,7 @@ model Book {
 }
 
 model Chapter {
-  id            String   @id @default(cuid())
+  id            String   @id @default(cuid()) @map("_id")
   bookId        String
   book          Book     @relation(fields: [bookId], references: [id], onDelete: Restrict)
   name          String
@@ -123,7 +123,7 @@ model Chapter {
 }
 
 model Exercise {
-  id            String   @id @default(cuid())
+  id            String   @id @default(cuid()) @map("_id")
   chapterId     String
   chapter       Chapter  @relation(fields: [chapterId], references: [id], onDelete: Restrict)
   name          String
@@ -143,7 +143,7 @@ model Exercise {
 }
 
 model StudentBook {
-  id                  String   @id @default(cuid())
+  id                  String   @id @default(cuid()) @map("_id")
   studentId           String
   student             User     @relation("StudentBookStudent", fields: [studentId], references: [id], onDelete: Cascade)
   bookId              String
@@ -156,7 +156,7 @@ model StudentBook {
 }
 
 model HomeworkAssignment {
-  id                 String   @id @default(cuid())
+  id                 String   @id @default(cuid()) @map("_id")
   studentId          String
   student            User     @relation("StudentHomework", fields: [studentId], references: [id], onDelete: Cascade)
   teacherId          String
@@ -199,7 +199,7 @@ model HomeworkAssignment {
 }
 
 model HomeworkProgressHistory {
-  id                   String             @id @default(cuid())
+  id                   String             @id @default(cuid()) @map("_id")
   homeworkAssignmentId String
   homeworkAssignment   HomeworkAssignment @relation(fields: [homeworkAssignmentId], references: [id], onDelete: Cascade)
   studentId            String
@@ -217,7 +217,7 @@ model HomeworkProgressHistory {
 }
 
 model HomeworkSubmission {
-  id                   String             @id @default(cuid())
+  id                   String             @id @default(cuid()) @map("_id")
   homeworkAssignmentId String
   homeworkAssignment   HomeworkAssignment @relation(fields: [homeworkAssignmentId], references: [id], onDelete: Cascade)
   studentNotes         String?
@@ -230,7 +230,7 @@ model HomeworkSubmission {
 }
 
 model HomeworkAttachment {
-  id                   String              @id @default(cuid())
+  id                   String              @id @default(cuid()) @map("_id")
   homeworkAssignmentId String
   homeworkAssignment   HomeworkAssignment  @relation(fields: [homeworkAssignmentId], references: [id], onDelete: Cascade)
   submissionId         String?
@@ -243,14 +243,14 @@ model HomeworkAttachment {
 }
 
 model SystemSetting {
-  id                           String   @id @default("default")
+  id                           String   @id @default("default") @map("_id")
   requireTeacherVerification   Boolean  @default(true)
   sequentialExerciseCompletion Boolean  @default(false)
   updatedAt                    DateTime @updatedAt
 }
 
 model Notification {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
@@ -262,7 +262,7 @@ model Notification {
 }
 
 model AuditLog {
-  id         String   @id @default(cuid())
+  id         String   @id @default(cuid()) @map("_id")
   userId     String?
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   action     String
@@ -273,7 +273,7 @@ model AuditLog {
 }
 
 model TeacherStudentAssignment {
-  id           String   @id @default(cuid())
+  id           String   @id @default(cuid()) @map("_id")
   teacherId    String
   teacher      User     @relation("TeacherToStudents", fields: [teacherId], references: [id], onDelete: Cascade)
   studentId    String
@@ -287,4 +287,3 @@ model TeacherStudentAssignment {
 
   @@unique([teacherId, studentId, subjectId])
 }
-

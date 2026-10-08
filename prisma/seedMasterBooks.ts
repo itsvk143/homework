@@ -34,7 +34,7 @@ export async function seedMasterBooks() {
     }
 
     // 2. Upsert Book by bookCode
-    const existingBook = await prisma.book.findUnique({
+    const existingBook = await prisma.book.findFirst({
       where: { bookCode: bookData.bookCode },
     });
 
