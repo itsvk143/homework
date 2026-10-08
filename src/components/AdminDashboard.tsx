@@ -27,9 +27,9 @@ import { AdminStudentManagement } from "./AdminStudentManagement";
 export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<
     "content" | "library" | "teachers" | "students" | "settings" | "audit"
-  >("teachers");
+  >("students");
   const [visitedTabs, setVisitedTabs] = useState<Record<string, boolean>>({
-    teachers: true,
+    students: true,
   });
   const [hierarchy, setHierarchy] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({
@@ -191,18 +191,6 @@ export function AdminDashboard() {
       <div className="flex items-center justify-between border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
           <button
-            onClick={() => handleTabChange("teachers")}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-              activeTab === "teachers"
-                ? "bg-blue-600 text-white shadow-xs"
-                : "text-blue-700 bg-blue-50/60 hover:bg-blue-100/60"
-            }`}
-          >
-            <GraduationCap className="w-4 h-4" />
-            <span>Manage Teachers</span>
-          </button>
-
-          <button
             onClick={() => handleTabChange("students")}
             className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
               activeTab === "students"
@@ -212,6 +200,18 @@ export function AdminDashboard() {
           >
             <Users className="w-4 h-4" />
             <span>Manage Students</span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange("teachers")}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === "teachers"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "text-blue-700 bg-blue-50/60 hover:bg-blue-100/60"
+            }`}
+          >
+            <GraduationCap className="w-4 h-4" />
+            <span>Manage Teachers</span>
           </button>
 
           <button
@@ -484,14 +484,14 @@ export function AdminDashboard() {
         {visitedTabs.library && <BookLibrary />}
       </div>
 
-      {/* TAB: MANAGE TEACHERS DASHBOARD */}
-      <div className={activeTab === "teachers" ? "block" : "hidden"}>
-        <AdminTeacherManagement />
-      </div>
-
       {/* TAB: MANAGE STUDENTS DASHBOARD */}
       <div className={activeTab === "students" ? "block" : "hidden"}>
         {visitedTabs.students && <AdminStudentManagement />}
+      </div>
+
+      {/* TAB: MANAGE TEACHERS DASHBOARD */}
+      <div className={activeTab === "teachers" ? "block" : "hidden"}>
+        {visitedTabs.teachers && <AdminTeacherManagement />}
       </div>
 
       {/* TAB 2: SYSTEM SETTINGS (Requirement 32 & 42) */}
