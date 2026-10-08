@@ -11,7 +11,7 @@ export async function GET() {
           select: { books: true, homeworks: true },
         },
       },
-      orderBy: { name: "asc" },
+      orderBy: [{ name: "asc" }, { classGrade: "asc" }],
     });
     return NextResponse.json({ subjects });
   } catch (error) {

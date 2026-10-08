@@ -178,6 +178,24 @@ export function AdminStudentManagement() {
   const handleOpenAssignModal = (student: any) => {
     setAssigningStudent(student);
     fetchStudentAssignments(student.id);
+
+    const studentGrade = student?.studentProfile?.classGrade || "";
+    // Pre-select matching subject if available
+    const matching = allSubjects.find((s) => {
+      if (!studentGrade) return false;
+      if (s.classGrade === studentGrade) return true;
+      if (studentGrade.includes("Dropper") && s.classGrade?.includes("Dropper")) return true;
+      if (studentGrade.includes("NEET") && s.classGrade?.includes("NEET")) return true;
+      if (studentGrade.includes("JEE") && s.classGrade?.includes("JEE")) return true;
+      if (studentGrade.includes("11") && s.classGrade?.includes("11")) return true;
+      if (studentGrade.includes("12") && s.classGrade?.includes("12")) return true;
+      return false;
+    });
+    if (matching) {
+      setSelectedSubjectId(matching.id);
+    } else if (allSubjects.length > 0) {
+      setSelectedSubjectId(allSubjects[0].id);
+    }
   };
 
   const handleSaveStudentAssignment = async () => {
@@ -764,16 +782,19 @@ export function AdminStudentManagement() {
                   >
                     <option value="NEET Dropper">NEET Dropper</option>
                     <option value="JEE Dropper">JEE Dropper</option>
-                    <option value="Class 4">Class 4</option>
-                    <option value="Class 5">Class 5</option>
-                    <option value="Class 6">Class 6</option>
-                    <option value="Class 7">Class 7</option>
-                    <option value="Class 8">Class 8</option>
-                    <option value="Class 9">Class 9</option>
-                    <option value="Class 10">Class 10</option>
+                    <option value="Class 11 NEET">Class 11 NEET</option>
+                    <option value="Class 11 JEE">Class 11 JEE</option>
                     <option value="Class 11">Class 11</option>
+                    <option value="Class 12 NEET">Class 12 NEET</option>
+                    <option value="Class 12 JEE">Class 12 JEE</option>
                     <option value="Class 12">Class 12</option>
-                    <option value="Class 11 & 12">Class 11 & 12</option>
+                    <option value="Class 10">Class 10</option>
+                    <option value="Class 9">Class 9</option>
+                    <option value="Class 8">Class 8</option>
+                    <option value="Class 7">Class 7</option>
+                    <option value="Class 6">Class 6</option>
+                    <option value="Class 5">Class 5</option>
+                    <option value="Class 4">Class 4</option>
                   </select>
                 </div>
                 <div>
@@ -887,16 +908,19 @@ export function AdminStudentManagement() {
                   >
                     <option value="NEET Dropper">NEET Dropper</option>
                     <option value="JEE Dropper">JEE Dropper</option>
-                    <option value="Class 4">Class 4</option>
-                    <option value="Class 5">Class 5</option>
-                    <option value="Class 6">Class 6</option>
-                    <option value="Class 7">Class 7</option>
-                    <option value="Class 8">Class 8</option>
-                    <option value="Class 9">Class 9</option>
-                    <option value="Class 10">Class 10</option>
+                    <option value="Class 11 NEET">Class 11 NEET</option>
+                    <option value="Class 11 JEE">Class 11 JEE</option>
                     <option value="Class 11">Class 11</option>
+                    <option value="Class 12 NEET">Class 12 NEET</option>
+                    <option value="Class 12 JEE">Class 12 JEE</option>
                     <option value="Class 12">Class 12</option>
-                    <option value="Class 11 & 12">Class 11 & 12</option>
+                    <option value="Class 10">Class 10</option>
+                    <option value="Class 9">Class 9</option>
+                    <option value="Class 8">Class 8</option>
+                    <option value="Class 7">Class 7</option>
+                    <option value="Class 6">Class 6</option>
+                    <option value="Class 5">Class 5</option>
+                    <option value="Class 4">Class 4</option>
                   </select>
                 </div>
                 <div>
@@ -1200,17 +1224,45 @@ export function AdminStudentManagement() {
                 {/* Subject Selector */}
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-slate-600">Select Subject</label>
-                  <select
-                    value={selectedSubjectId}
-                    onChange={(e) => setSelectedSubjectId(e.target.value)}
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-800 outline-hidden focus:border-indigo-500 text-xs shadow-2xs"
-                  >
-                    {allSubjects.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.classGrade || "All Grades"})
-                      </option>
-                    ))}
-                  </select>
+                  {(() => {
+                    const studentGrade = assigningStudent?.studentProfile?.classGrade || "";
+                    const matchingSubjects = allSubjects.filter((s) => {
+                      if (!studentGrade) return false;
+                      if (s.classGrade === studentGrade) return true;
+                      if (studentGrade.includes("Dropper") && s.classGrade?.includes("Dropper")) return true;
+                      if (studentGrade.includes("NEET") && s.classGrade?.includes("NEET")) return true;
+                      if (studentGrade.includes("JEE") && s.classGrade?.includes("JEE")) return true;
+                      if (studentGrade.includes("11") && s.classGrade?.includes("11")) return true;
+                      if (studentGrade.includes("12") && s.classGrade?.includes("12")) return true;
+                      return false;
+                    });
+                    const otherSubjects = allSubjects.filter((s) => !matchingSubjects.some((m) => m.id === s.id));
+
+                    return (
+                      <select
+                        value={selectedSubjectId}
+                        onChange={(e) => setSelectedSubjectId(e.target.value)}
+                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-800 outline-hidden focus:border-indigo-500 text-xs shadow-2xs"
+                      >
+                        {matchingSubjects.length > 0 && (
+                          <optgroup label={`⭐ Recommended for ${studentGrade} (${matchingSubjects.length})`}>
+                            {matchingSubjects.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name} ({s.classGrade})
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        <optgroup label="All Other Subjects">
+                          {otherSubjects.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name} ({s.classGrade || "All Grades"})
+                            </option>
+                          ))}
+                        </optgroup>
+                      </select>
+                    );
+                  })()}
                 </div>
 
                 <div className="pt-1">

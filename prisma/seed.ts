@@ -125,8 +125,9 @@ async function main() {
     },
   });
 
-  // 4. Ensure Core Subjects exist
+  // 4. Ensure Core Subjects exist (Physics, Chemistry, Biology, Mathematics & Foundations)
   const subjectsData = [
+    // Foundation subjects
     {
       name: "Mathematics",
       classGrade: "Class 8",
@@ -151,6 +152,40 @@ async function main() {
       color: "#D97706",
       icon: "book-open",
     },
+
+    // Physics
+    { name: "Physics", classGrade: "Class 11", code: "PHY11", color: "#2563EB", icon: "atom", description: "Class 11 Physics (Mechanics, Waves, Thermodynamics)" },
+    { name: "Physics", classGrade: "Class 11 NEET", code: "PHY11_NEET", color: "#2563EB", icon: "atom", description: "Class 11 Medical Entrance Physics focused on NEET pattern and numericals" },
+    { name: "Physics", classGrade: "Class 11 JEE", code: "PHY11_JEE", color: "#2563EB", icon: "atom", description: "Class 11 Engineering Entrance Physics for JEE Main & Advanced" },
+    { name: "Physics", classGrade: "NEET Dropper", code: "PHY_NEET_DROP", color: "#2563EB", icon: "atom", description: "Intensive NEET Dropper Physics complete syllabus revision & speed tests" },
+    { name: "Physics", classGrade: "Class 12", code: "PHY12", color: "#2563EB", icon: "atom", description: "Class 12 Physics (Electromagnetism, Optics, Modern Physics)" },
+    { name: "Physics", classGrade: "Class 12 NEET", code: "PHY12_NEET", color: "#2563EB", icon: "atom", description: "Class 12 Medical Entrance Physics focused on NEET pattern" },
+    { name: "Physics", classGrade: "Class 12 JEE", code: "PHY12_JEE", color: "#2563EB", icon: "atom", description: "Class 12 Engineering Entrance Physics for JEE Main & Advanced" },
+    { name: "Physics", classGrade: "JEE Dropper", code: "PHY_JEE_DROP", color: "#2563EB", icon: "atom", description: "Intensive JEE Dropper Physics comprehensive problem-solving" },
+
+    // Chemistry
+    { name: "Chemistry", classGrade: "Class 11", code: "CHEM11", color: "#D97706", icon: "flask-conical", description: "Class 11 Chemistry (Physical, Inorganic, Organic fundamentals)" },
+    { name: "Chemistry", classGrade: "Class 11 NEET", code: "CHEM11_NEET", color: "#D97706", icon: "flask-conical", description: "Class 11 NEET Chemistry with NCERT line-by-line focus" },
+    { name: "Chemistry", classGrade: "Class 11 JEE", code: "CHEM11_JEE", color: "#D97706", icon: "flask-conical", description: "Class 11 JEE Main & Advanced Chemistry" },
+    { name: "Chemistry", classGrade: "NEET Dropper", code: "CHEM_NEET_DROP", color: "#D97706", icon: "flask-conical", description: "Target NEET Dropper Chemistry complete revision & test series" },
+    { name: "Chemistry", classGrade: "Class 12", code: "CHEM12", color: "#D97706", icon: "flask-conical", description: "Class 12 Chemistry (Solutions, Electrochemistry, Kinetics, Organic)" },
+    { name: "Chemistry", classGrade: "Class 12 NEET", code: "CHEM12_NEET", color: "#D97706", icon: "flask-conical", description: "Class 12 NEET Chemistry high-yield practice" },
+    { name: "Chemistry", classGrade: "Class 12 JEE", code: "CHEM12_JEE", color: "#D97706", icon: "flask-conical", description: "Class 12 JEE Chemistry advanced mechanisms and physical problems" },
+    { name: "Chemistry", classGrade: "JEE Dropper", code: "CHEM_JEE_DROP", color: "#D97706", icon: "flask-conical", description: "Target JEE Dropper Chemistry full syllabus revision" },
+
+    // Biology
+    { name: "Biology", classGrade: "Class 11", code: "BIO11", color: "#059669", icon: "dna", description: "Class 11 Biology (Diversity, Cell Biology, Plant & Human Physiology)" },
+    { name: "Biology", classGrade: "Class 11 NEET", code: "BIO11_NEET", color: "#059669", icon: "dna", description: "Class 11 Medical Entrance NEET Biology" },
+    { name: "Biology", classGrade: "NEET Dropper", code: "BIO_NEET_DROP", color: "#059669", icon: "dna", description: "NEET Dropper Target 360/360 Biology intensive syllabus mastery" },
+    { name: "Biology", classGrade: "Class 12", code: "BIO12", color: "#059669", icon: "dna", description: "Class 12 Biology (Genetics, Evolution, Reproduction, Biotechnology, Ecology)" },
+    { name: "Biology", classGrade: "Class 12 NEET", code: "BIO12_NEET", color: "#059669", icon: "dna", description: "Class 12 Medical Entrance NEET Biology mastery" },
+
+    // Mathematics
+    { name: "Mathematics", classGrade: "Class 11", code: "MATH11", color: "#4F46E5", icon: "calculator", description: "Class 11 Mathematics (Sets, Trigonometry, Coordinate Geometry, Calculus)" },
+    { name: "Mathematics", classGrade: "Class 11 JEE", code: "MATH11_JEE", color: "#4F46E5", icon: "calculator", description: "Class 11 JEE Main & Advanced Mathematics rigorous problem solving" },
+    { name: "Mathematics", classGrade: "Class 12", code: "MATH12", color: "#4F46E5", icon: "calculator", description: "Class 12 Mathematics (Calculus, Vectors, 3D, Probability)" },
+    { name: "Mathematics", classGrade: "Class 12 JEE", code: "MATH12_JEE", color: "#4F46E5", icon: "calculator", description: "Class 12 JEE Main & Advanced Mathematics" },
+    { name: "Mathematics", classGrade: "JEE Dropper", code: "MATH_JEE_DROP", color: "#4F46E5", icon: "calculator", description: "JEE Dropper Mathematics comprehensive advanced preparation" },
   ];
 
   for (const s of subjectsData) {
