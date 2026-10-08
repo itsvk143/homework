@@ -40,31 +40,43 @@ export async function GET(req: NextRequest) {
         studentProfile: true,
         assignedTeachersAsStudent: {
           where: { status: "ACTIVE" },
-          include: {
+          select: {
+            id: true,
             teacher: {
-              include: { teacherProfile: true },
+              select: { id: true, name: true, teacherProfile: { select: { phone: true } } },
             },
-            subject: true,
+            subject: {
+              select: { id: true, name: true, classGrade: true },
+            },
           },
         },
         assignedBooksAsStudent: {
-          include: {
-            book: {
-              include: { subject: true },
-            },
+          select: {
+            id: true,
+            bookId: true,
           },
         },
         _count: {
           select: {
             studentAssignments: true,
             assignedTeachersAsStudent: true,
+            assignedBooksAsStudent: true,
           },
         },
       },
       orderBy: { name: "asc" },
     });
 
-    return NextResponse.json({ students });
+    return NextResponse.json(
+      { students },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          "Pragma": "no-cache",
+          "Expires": "0",
+        },
+      }
+    );
   } catch (error) {
     console.error("Error fetching students:", error);
     return NextResponse.json(

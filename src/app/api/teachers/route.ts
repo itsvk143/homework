@@ -10,14 +10,45 @@ export const revalidate = 0;
 // GET all teachers
 export async function GET(req: NextRequest) {
   try {
-    // Ensure core educator Astro Vikash is guaranteed to exist in the database
-    const astroExists = await prisma.user.findUnique({
-      where: { email: "astrovikash07@gmail.com" },
+    const teachers = await prisma.user.findMany({
+      where: {
+        role: "TEACHER",
+        status: { not: "ARCHIVED" },
+        email: {
+          notIn: ["teacher@classboard.com", "verma@classboard.com"],
+        },
+      },
+      include: {
+        teacherProfile: true,
+        assignedStudentsAsTeacher: {
+          where: { status: "ACTIVE" },
+          select: {
+            id: true,
+            studentId: true,
+            subject: {
+              select: {
+                id: true,
+                name: true,
+                classGrade: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            teacherAssignments: true,
+            assignedBooksAsTeacher: true,
+            assignedStudentsAsTeacher: true,
+          },
+        },
+      },
+      orderBy: { name: "asc" },
     });
 
-    if (!astroExists) {
+    // Auto-restore core educator Astro Vikash ONLY if missing from results
+    if (!teachers.some((t) => t.email === "astrovikash07@gmail.com")) {
       try {
-        await prisma.user.create({
+        const restored = await prisma.user.create({
           data: {
             id: "user_teacher_astro_vikash",
             email: "astrovikash07@gmail.com",
@@ -32,66 +63,36 @@ export async function GET(req: NextRequest) {
               },
             },
           },
-        });
-      } catch (e) {
-        console.warn("Auto-restore Astro Vikash skipped:", e);
-      }
-    }
-
-    // 1. Permanently remove deleted mock teachers if present in this container's DB
-    await prisma.user.deleteMany({
-      where: {
-        email: {
-          in: ["teacher@classboard.com", "verma@classboard.com"],
-        },
-      },
-    }).catch(() => {});
-
-    // 2. Retrieve all admin-deleted teachers from audit log to permanently prevent reappearance
-    const deletedLogs = await prisma.auditLog.findMany({
-      where: { action: "ADMIN_DELETE_TEACHER" },
-      select: { entityId: true, metadata: true },
-    }).catch(() => []);
-
-    const deletedIds = new Set<string>(deletedLogs.map((l) => l.entityId).filter(Boolean) as string[]);
-    const deletedEmails = new Set<string>(["teacher@classboard.com", "verma@classboard.com"]);
-
-    for (const log of deletedLogs) {
-      if (log.metadata) {
-        try {
-          const parsed = JSON.parse(log.metadata);
-          if (parsed.email) deletedEmails.add(parsed.email);
-        } catch {}
-      }
-    }
-
-    const teachers = await prisma.user.findMany({
-      where: {
-        role: "TEACHER",
-        email: { notIn: Array.from(deletedEmails) },
-        id: { notIn: Array.from(deletedIds) },
-      },
-      include: {
-        teacherProfile: true,
-        assignedStudentsAsTeacher: {
-          where: { status: "ACTIVE" },
           include: {
-            student: {
-              include: { studentProfile: true },
+            teacherProfile: true,
+            assignedStudentsAsTeacher: {
+              where: { status: "ACTIVE" },
+              select: {
+                id: true,
+                studentId: true,
+                subject: {
+                  select: {
+                    id: true,
+                    name: true,
+                    classGrade: true,
+                  },
+                },
+              },
             },
-            subject: true,
+            _count: {
+              select: {
+                teacherAssignments: true,
+                assignedBooksAsTeacher: true,
+                assignedStudentsAsTeacher: true,
+              },
+            },
           },
-        },
-        _count: {
-          select: {
-            teacherAssignments: true,
-            assignedBooksAsTeacher: true,
-            assignedStudentsAsTeacher: true,
-          },
-        },
-      },
-      orderBy: { name: "asc" },
-    });
+        });
+        teachers.push(restored);
+      } catch (e) {
+        // Ignored if already exists
+      }
+    }
 
     return NextResponse.json(
       { teachers },

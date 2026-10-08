@@ -22,8 +22,30 @@ import {
 } from "lucide-react";
 
 export function AdminTeacherManagement() {
-  const [teachers, setTeachers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [teachers, setTeachers] = useState<any[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("cb_cached_teachers");
+        if (cached) {
+          const list = JSON.parse(cached);
+          if (Array.isArray(list) && list.length > 0) return list;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("cb_cached_teachers");
+        if (cached) {
+          const list = JSON.parse(cached);
+          if (Array.isArray(list) && list.length > 0) return false;
+        }
+      } catch {}
+    }
+    return true;
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSpecialty, setSelectedSpecialty] = useState("ALL");
 
@@ -84,7 +106,9 @@ export function AdminTeacherManagement() {
 
   const fetchTeachers = async () => {
     try {
-      setLoading(true);
+      if (teachers.length === 0) {
+        setLoading(true);
+      }
       const res = await fetch("/api/teachers", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
@@ -100,6 +124,7 @@ export function AdminTeacherManagement() {
                 t.email?.toLowerCase() !== "teacher@classboard.com" &&
                 t.email?.toLowerCase() !== "verma@classboard.com"
             );
+            localStorage.setItem("cb_cached_teachers", JSON.stringify(loaded));
           } catch {}
         }
         setTeachers(loaded);
@@ -669,7 +694,7 @@ export function AdminTeacherManagement() {
 
       {/* Teachers Table / List */}
       <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
-        {loading ? (
+        {loading && teachers.length === 0 ? (
           <div className="p-12 text-center text-slate-400 text-xs font-semibold flex items-center justify-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" />
             <span>Loading faculty records...</span>

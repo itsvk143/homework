@@ -11,8 +11,23 @@ import { GlobalSearchModal } from "@/components/GlobalSearchModal";
 
 export default function Home() {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("cb_user_data");
+        if (cached) return JSON.parse(cached);
+      } catch {}
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        if (localStorage.getItem("cb_user_data")) return false;
+      } catch {}
+    }
+    return true;
+  });
   const [isMobileSimulator, setIsMobileSimulator] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
@@ -42,6 +57,7 @@ export default function Home() {
             if (data.user.email) localStorage.setItem("cb_user_email", data.user.email);
             if (data.user.role) localStorage.setItem("cb_user_role", data.user.role);
             if (data.sessionToken) localStorage.setItem("cb_session_token", data.sessionToken);
+            localStorage.setItem("cb_user_data", JSON.stringify(data.user));
           }
 
           const needsOnboarding = data.user.role === "PENDING";
@@ -53,15 +69,18 @@ export default function Home() {
           setCurrentUser(data.user);
         } else {
           // Authentication required: redirect to login
+          if (typeof window !== "undefined") localStorage.removeItem("cb_user_data");
           router.replace("/login");
           return;
         }
       } else {
+        if (typeof window !== "undefined") localStorage.removeItem("cb_user_data");
         router.replace("/login");
         return;
       }
     } catch (err) {
       console.error("Failed to load user session:", err);
+      if (typeof window !== "undefined") localStorage.removeItem("cb_user_data");
       router.replace("/login");
       return;
     } finally {

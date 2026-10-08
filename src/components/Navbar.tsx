@@ -351,6 +351,9 @@ export function Navbar({
                               localStorage.removeItem("cb_user_email");
                               localStorage.removeItem("cb_user_role");
                               localStorage.removeItem("cb_session_token");
+                              localStorage.removeItem("cb_user_data");
+                              localStorage.removeItem("cb_cached_teachers");
+                              localStorage.removeItem("cb_cached_students");
                             }
                             await fetch("/api/auth/logout", { method: "POST" });
                           } catch (e) {

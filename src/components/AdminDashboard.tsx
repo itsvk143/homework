@@ -28,13 +28,21 @@ export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<
     "content" | "library" | "teachers" | "students" | "settings" | "audit"
   >("teachers");
+  const [visitedTabs, setVisitedTabs] = useState<Record<string, boolean>>({
+    teachers: true,
+  });
   const [hierarchy, setHierarchy] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({
     requireTeacherVerification: true,
     sequentialExerciseCompletion: false,
   });
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  const handleTabChange = (tab: "content" | "settings" | "audit" | "teachers" | "students" | "library") => {
+    setActiveTab(tab);
+    setVisitedTabs((prev) => ({ ...prev, [tab]: true }));
+  };
 
   // Tree expansion state
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
@@ -90,12 +98,16 @@ export function AdminDashboard() {
     }
   };
 
+  // Lazy load tab data only when tab is viewed
   useEffect(() => {
-    setLoading(true);
-    Promise.all([fetchHierarchy(), fetchSettings(), fetchAuditLogs()]).finally(() =>
-      setLoading(false)
-    );
-  }, []);
+    if (activeTab === "content" && hierarchy.length === 0) {
+      fetchHierarchy();
+    } else if (activeTab === "settings" && Object.keys(settings).length <= 2) {
+      fetchSettings();
+    } else if (activeTab === "audit" && auditLogs.length === 0) {
+      fetchAuditLogs();
+    }
+  }, [activeTab]);
 
   const toggleNode = (nodeId: string) => {
     setExpandedNodes((prev) => ({ ...prev, [nodeId]: !prev[nodeId] }));
@@ -179,7 +191,7 @@ export function AdminDashboard() {
       <div className="flex items-center justify-between border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
           <button
-            onClick={() => setActiveTab("teachers")}
+            onClick={() => handleTabChange("teachers")}
             className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
               activeTab === "teachers"
                 ? "bg-blue-600 text-white shadow-xs"
@@ -191,7 +203,7 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveTab("students")}
+            onClick={() => handleTabChange("students")}
             className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
               activeTab === "students"
                 ? "bg-emerald-600 text-white shadow-xs"
@@ -203,7 +215,7 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveTab("library")}
+            onClick={() => handleTabChange("library")}
             className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === "library"
                 ? "bg-slate-900 text-white shadow-xs"
@@ -215,7 +227,7 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveTab("settings")}
+            onClick={() => handleTabChange("settings")}
             className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === "settings"
                 ? "bg-slate-900 text-white shadow-xs"
@@ -227,7 +239,7 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveTab("audit")}
+            onClick={() => handleTabChange("audit")}
             className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === "audit"
                 ? "bg-slate-900 text-white shadow-xs"
@@ -239,7 +251,7 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setActiveTab("content")}
+            onClick={() => handleTabChange("content")}
             className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               activeTab === "content"
                 ? "bg-slate-900 text-white shadow-xs"
@@ -267,341 +279,347 @@ export function AdminDashboard() {
       </div>
 
       {/* TAB 1: TREE-BASED MASTER ACADEMIC CONTENT BUILDER (Requirement 43 & 44) */}
-      {activeTab === "content" && (
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">
-                Academic Curriculum Hierarchy
-              </h2>
-              <p className="text-xs text-slate-500">
-                Predefined master structure: Subject → Book → Chapter → Exercise. Delete protection preserves historical homework records.
-              </p>
+      <div className={activeTab === "content" ? "block" : "hidden"}>
+        {visitedTabs.content && (
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">
+                  Academic Curriculum Hierarchy
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Predefined master structure: Subject → Book → Chapter → Exercise. Delete protection preserves historical homework records.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-[11px] text-slate-500 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl text-amber-800">
+                <ShieldAlert className="w-4 h-4 text-amber-600" />
+                <span>Delete Protection Active</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-[11px] text-slate-500 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl text-amber-800">
-              <ShieldAlert className="w-4 h-4 text-amber-600" />
-              <span>Delete Protection Active</span>
-            </div>
-          </div>
 
-          {/* Tree View */}
-          <div className="space-y-2 pt-2">
-            {hierarchy.map((sub) => {
-              const isSubExpanded = !!expandedNodes[sub.id];
+            {/* Tree View */}
+            <div className="space-y-2 pt-2">
+              {hierarchy.map((sub) => {
+                const isSubExpanded = !!expandedNodes[sub.id];
 
-              return (
-                <div key={sub.id} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/50">
-                  {/* Subject Node */}
-                  <div className="p-3.5 bg-white flex items-center justify-between hover:bg-slate-50/80 transition-colors">
-                    <button
-                      onClick={() => toggleNode(sub.id)}
-                      className="flex items-center gap-2.5 font-bold text-sm text-slate-900"
-                    >
-                      {isSubExpanded ? (
-                        <ChevronDown className="w-4 h-4 text-slate-400" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-slate-400" />
-                      )}
-                      <span
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: sub.color }}
-                      />
-                      <span>{sub.name}</span>
-                      <span className="text-[10px] text-slate-400 font-semibold px-2 py-0.5 rounded-full bg-slate-100">
-                        {sub.books?.length || 0} books
-                      </span>
-                    </button>
+                return (
+                  <div key={sub.id} className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/50">
+                    {/* Subject Node */}
+                    <div className="p-3.5 bg-white flex items-center justify-between hover:bg-slate-50/80 transition-colors">
+                      <button
+                        onClick={() => toggleNode(sub.id)}
+                        className="flex items-center gap-2.5 font-bold text-sm text-slate-900"
+                      >
+                        {isSubExpanded ? (
+                          <ChevronDown className="w-4 h-4 text-slate-400" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-slate-400" />
+                        )}
+                        <span
+                          className="w-3 hand-3 rounded-full"
+                          style={{ backgroundColor: sub.color }}
+                        />
+                        <span>{sub.name}</span>
+                        <span className="text-[10px] text-slate-400 font-semibold px-2 py-0.5 rounded-full bg-slate-100">
+                          {sub.books?.length || 0} books
+                        </span>
+                      </button>
 
-                    <button
-                      onClick={() => {
-                        setModalType("book");
-                        setSelectedParentId(sub.id);
-                        setFormData({ name: "", classGrade: sub.classGrade, displayOrder: (sub.books?.length || 0) + 1 });
-                      }}
-                      className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition-colors"
-                    >
-                      <Plus className="w-3 h-3" /> Add Book
-                    </button>
-                  </div>
-
-                  {/* Books list under Subject */}
-                  {isSubExpanded && (
-                    <div className="pl-6 pr-3 py-2 space-y-2 border-t border-slate-100">
-                      {sub.books?.map((b: any) => {
-                        const isBookExpanded = !!expandedNodes[b.id];
-
-                        return (
-                          <div key={b.id} className="border border-slate-200/80 rounded-xl bg-white overflow-hidden">
-                            {/* Book Node */}
-                            <div className="p-3 flex items-center justify-between hover:bg-slate-50/60 transition-colors">
-                              <button
-                                onClick={() => toggleNode(b.id)}
-                                className="flex items-center gap-2 font-semibold text-xs text-slate-800"
-                              >
-                                {isBookExpanded ? (
-                                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                                ) : (
-                                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                                )}
-                                <BookOpen className="w-4 h-4 text-indigo-600" />
-                                <span>{b.name}</span>
-                                <span className="text-[10px] text-slate-400 font-normal">
-                                  ({b.chapters?.length || 0} chapters)
-                                </span>
-                              </button>
-
-                              <button
-                                onClick={() => {
-                                  setModalType("chapter");
-                                  setSelectedParentId(b.id);
-                                  setFormData({
-                                    name: "",
-                                    chapterNumber: (b.chapters?.length || 0) + 1,
-                                  });
-                                }}
-                                className="flex items-center gap-1 text-[10px] font-bold text-slate-600 hover:text-slate-900 px-2 py-0.5 rounded bg-slate-100"
-                              >
-                                <Plus className="w-3 h-3" /> Add Chapter
-                              </button>
-                            </div>
-
-                            {/* Chapters list under Book */}
-                            {isBookExpanded && (
-                              <div className="pl-6 pr-3 py-2 space-y-2 border-t border-slate-100 bg-slate-50/30">
-                                {b.chapters?.map((ch: any) => {
-                                  const isChapExpanded = !!expandedNodes[ch.id];
-
-                                  return (
-                                    <div key={ch.id} className="border border-slate-200/60 rounded-lg bg-white">
-                                      {/* Chapter Node */}
-                                      <div className="p-2.5 flex items-center justify-between text-xs">
-                                        <button
-                                          onClick={() => toggleNode(ch.id)}
-                                          className="flex items-center gap-2 font-medium text-slate-800"
-                                        >
-                                          {isChapExpanded ? (
-                                            <ChevronDown className="w-3 h-3 text-slate-400" />
-                                          ) : (
-                                            <ChevronRight className="w-3 h-3 text-slate-400" />
-                                          )}
-                                          <Folder className="w-3.5 h-3.5 text-amber-500" />
-                                          <span>
-                                            Ch {ch.chapterNumber}: {ch.name}
-                                          </span>
-                                        </button>
-
-                                        <button
-                                          onClick={() => {
-                                            setModalType("exercise");
-                                            setSelectedParentId(ch.id);
-                                            setFormData({
-                                              name: `Exercise ${ch.chapterNumber}.${(ch.exercises?.length || 0) + 1}`,
-                                              exerciseNumber: `${ch.chapterNumber}.${(ch.exercises?.length || 0) + 1}`,
-                                              totalQuestions: 20,
-                                            });
-                                          }}
-                                          className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-800"
-                                        >
-                                          <Plus className="w-3 h-3" /> Add Exercise
-                                        </button>
-                                      </div>
-
-                                      {/* Exercises list under Chapter */}
-                                      {isChapExpanded && (
-                                        <div className="pl-6 pr-3 py-2 space-y-1.5 border-t border-slate-100">
-                                          {ch.exercises?.map((ex: any) => {
-                                            const refCount = ex._count?.homeworks || 0;
-
-                                            return (
-                                              <div
-                                                key={ex.id}
-                                                className="p-2 rounded-lg bg-slate-50 border border-slate-200/50 flex items-center justify-between text-xs"
-                                              >
-                                                <div className="flex items-center gap-2">
-                                                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                                                  <span className="font-bold text-slate-900">
-                                                    {ex.name}
-                                                  </span>
-                                                  <span className="text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-200/60 px-1.5 py-0.2 rounded font-semibold">
-                                                    {ex.totalQuestions} Questions
-                                                  </span>
-                                                  {refCount > 0 && (
-                                                    <span className="text-[10px] text-slate-400">
-                                                      ({refCount} assigned homeworks)
-                                                    </span>
-                                                  )}
-                                                </div>
-
-                                                <button
-                                                  onClick={() => handleDeleteExercise(ex.id)}
-                                                  className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
-                                                  title={
-                                                    refCount > 0
-                                                      ? "Archive Exercise (Historical homework preserved)"
-                                                      : "Delete Exercise"
-                                                  }
-                                                >
-                                                  <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                      <button
+                        onClick={() => {
+                          setModalType("book");
+                          setSelectedParentId(sub.id);
+                          setFormData({ name: "", classGrade: sub.classGrade, displayOrder: (sub.books?.length || 0) + 1 });
+                        }}
+                        className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                      >
+                        <Plus className="w-3 h-3" /> Add Book
+                      </button>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+
+                    {/* Books list under Subject */}
+                    {isSubExpanded && (
+                      <div className="pl-6 pr-3 py-2 space-y-2 border-t border-slate-100">
+                        {sub.books?.map((b: any) => {
+                          const isBookExpanded = !!expandedNodes[b.id];
+
+                          return (
+                            <div key={b.id} className="border border-slate-200/80 rounded-xl bg-white overflow-hidden">
+                              {/* Book Node */}
+                              <div className="p-3 flex items-center justify-between hover:bg-slate-50/60 transition-colors">
+                                <button
+                                  onClick={() => toggleNode(b.id)}
+                                  className="flex items-center gap-2 font-semibold text-xs text-slate-800"
+                                >
+                                  {isBookExpanded ? (
+                                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                                  ) : (
+                                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                                  )}
+                                  <BookOpen className="w-4 h-4 text-indigo-600" />
+                                  <span>{b.name}</span>
+                                  <span className="text-[10px] text-slate-400 font-normal">
+                                    ({b.chapters?.length || 0} chapters)
+                                  </span>
+                                </button>
+
+                                <button
+                                  onClick={() => {
+                                    setModalType("chapter");
+                                    setSelectedParentId(b.id);
+                                    setFormData({
+                                      name: "",
+                                      chapterNumber: (b.chapters?.length || 0) + 1,
+                                    });
+                                  }}
+                                  className="flex items-center gap-1 text-[10px] font-bold text-slate-600 hover:text-slate-900 px-2 py-0.5 rounded bg-slate-100"
+                                >
+                                  <Plus className="w-3 h-3" /> Add Chapter
+                                </button>
+                              </div>
+
+                              {/* Chapters list under Book */}
+                              {isBookExpanded && (
+                                <div className="pl-6 pr-3 py-2 space-y-2 border-t border-slate-100 bg-slate-50/30">
+                                  {b.chapters?.map((ch: any) => {
+                                    const isChapExpanded = !!expandedNodes[ch.id];
+
+                                    return (
+                                      <div key={ch.id} className="border border-slate-200/60 rounded-lg bg-white">
+                                        {/* Chapter Node */}
+                                        <div className="p-2.5 flex items-center justify-between text-xs">
+                                          <button
+                                            onClick={() => toggleNode(ch.id)}
+                                            className="flex items-center gap-2 font-medium text-slate-800"
+                                          >
+                                            {isChapExpanded ? (
+                                              <ChevronDown className="w-3 h-3 text-slate-400" />
+                                            ) : (
+                                              <ChevronRight className="w-3 h-3 text-slate-400" />
+                                            )}
+                                            <Folder className="w-3.5 h-3.5 text-amber-500" />
+                                            <span>
+                                              Ch {ch.chapterNumber}: {ch.name}
+                                            </span>
+                                          </button>
+
+                                          <button
+                                            onClick={() => {
+                                              setModalType("exercise");
+                                              setSelectedParentId(ch.id);
+                                              setFormData({
+                                                name: `Exercise ${ch.chapterNumber}.${(ch.exercises?.length || 0) + 1}`,
+                                                exerciseNumber: `${ch.chapterNumber}.${(ch.exercises?.length || 0) + 1}`,
+                                                totalQuestions: 20,
+                                              });
+                                            }}
+                                            className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-800"
+                                          >
+                                            <Plus className="w-3 h-3" /> Add Exercise
+                                          </button>
+                                        </div>
+
+                                        {/* Exercises list under Chapter */}
+                                        {isChapExpanded && (
+                                          <div className="pl-6 pr-3 py-2 space-y-1.5 border-t border-slate-100">
+                                            {ch.exercises?.map((ex: any) => {
+                                              const refCount = ex._count?.homeworks || 0;
+
+                                              return (
+                                                <div
+                                                  key={ex.id}
+                                                  className="p-2 rounded-lg bg-slate-50 border border-slate-200/50 flex items-center justify-between text-xs"
+                                                >
+                                                  <div className="flex items-center gap-2">
+                                                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                                                    <span className="font-bold text-slate-900">
+                                                      {ex.name}
+                                                    </span>
+                                                    <span className="text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-200/60 px-1.5 py-0.2 rounded font-semibold">
+                                                      {ex.totalQuestions} Questions
+                                                    </span>
+                                                    {refCount > 0 && (
+                                                      <span className="text-[10px] text-slate-400">
+                                                        ({refCount} assigned homeworks)
+                                                      </span>
+                                                    )}
+                                                  </div>
+
+                                                  <button
+                                                    onClick={() => handleDeleteExercise(ex.id)}
+                                                    className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+                                                    title={
+                                                      refCount > 0
+                                                        ? "Archive Exercise (Historical homework preserved)"
+                                                        : "Delete Exercise"
+                                                    }
+                                                  >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                  </button>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* TAB: MASTER BOOK LIBRARY */}
-      {activeTab === "library" && (
-        <BookLibrary />
-      )}
+      <div className={activeTab === "library" ? "block" : "hidden"}>
+        {visitedTabs.library && <BookLibrary />}
+      </div>
 
       {/* TAB: MANAGE TEACHERS DASHBOARD */}
-      {activeTab === "teachers" && (
+      <div className={activeTab === "teachers" ? "block" : "hidden"}>
         <AdminTeacherManagement />
-      )}
+      </div>
 
       {/* TAB: MANAGE STUDENTS DASHBOARD */}
-      {activeTab === "students" && (
-        <AdminStudentManagement />
-      )}
+      <div className={activeTab === "students" ? "block" : "hidden"}>
+        {visitedTabs.students && <AdminStudentManagement />}
+      </div>
 
       {/* TAB 2: SYSTEM SETTINGS (Requirement 32 & 42) */}
-      {activeTab === "settings" && (
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-6 max-w-3xl">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Platform Policies & Settings</h2>
-            <p className="text-xs text-slate-500">
-              Configure global behavioral rules for verification and progression.
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            {/* Setting 1: Require Teacher Verification (Requirement 32) */}
-            <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50 flex items-start justify-between gap-4">
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">
-                  Require Teacher Verification
-                </h4>
-                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                  When <strong>ON</strong>: When a student completes all questions (e.g., 20/20), status becomes <em>AWAITING_REVIEW</em> until a teacher verifies proof.
-                  <br />
-                  When <strong>OFF</strong>: 20/20 questions completed automatically marks homework as <em>COMPLETED</em>.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleUpdateSetting("requireTeacherVerification", !settings.requireTeacherVerification)
-                }
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                  settings.requireTeacherVerification ? "bg-indigo-600" : "bg-slate-300"
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                    settings.requireTeacherVerification ? "translate-x-5" : "translate-x-0"
-                  }`}
-                />
-              </button>
+      <div className={activeTab === "settings" ? "block" : "hidden"}>
+        {visitedTabs.settings && (
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-6 max-w-3xl">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Platform Policies & Settings</h2>
+              <p className="text-xs text-slate-500">
+                Configure global behavioral rules for verification and progression.
+              </p>
             </div>
 
-            {/* Setting 2: Sequential Exercise Completion (Requirement 42) */}
-            <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50 flex items-start justify-between gap-4">
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">
-                  Sequential Exercise Completion
-                </h4>
-                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                  When <strong>ON</strong>: Students must finish Exercise 1.1 before unlocking Exercise 1.2.
-                  <br />
-                  When <strong>OFF</strong>: Teachers can assign and students can complete any exercise independently.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleUpdateSetting(
-                    "sequentialExerciseCompletion",
-                    !settings.sequentialExerciseCompletion
-                  )
-                }
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                  settings.sequentialExerciseCompletion ? "bg-indigo-600" : "bg-slate-300"
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                    settings.sequentialExerciseCompletion ? "translate-x-5" : "translate-x-0"
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: AUDIT LOGS (Requirement 58) */}
-      {activeTab === "audit" && (
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
-          <div>
-            <h2 className="text-base font-bold text-slate-900">System Audit Trail</h2>
-            <p className="text-xs text-slate-500">
-              Immutable log of homework assignments, progress updates, verifications, and master content changes.
-            </p>
-          </div>
-
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {auditLogs.map((log) => (
-              <div
-                key={log.id}
-                className="p-3 rounded-xl border border-slate-200/80 bg-slate-50/50 flex items-center justify-between text-xs"
-              >
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/60 px-1.5 py-0.2 rounded text-[10px]">
-                      {log.action}
-                    </span>
-                    <span className="text-slate-800 font-medium">
-                      {log.user?.name || "System"} ({log.user?.role || "SYSTEM"})
-                    </span>
-                  </div>
-                  {log.metadata && (
-                    <p className="text-[11px] text-slate-500 font-mono">
-                      {log.metadata}
-                    </p>
-                  )}
+            <div className="space-y-4">
+              {/* Setting 1: Require Teacher Verification (Requirement 32) */}
+              <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50 flex items-start justify-between gap-4">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">
+                    Require Teacher Verification
+                  </h4>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                    When <strong>ON</strong>: When a student completes all questions (e.g., 20/20), status becomes <em>AWAITING_REVIEW</em> until a teacher verifies proof.
+                    <br />
+                    When <strong>OFF</strong>: 20/20 questions completed automatically marks homework as <em>COMPLETED</em>.
+                  </p>
                 </div>
 
-                <span className="text-[10px] text-slate-400">
-                  {new Date(log.timestamp).toLocaleTimeString([], {
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleUpdateSetting("requireTeacherVerification", !settings.requireTeacherVerification)
+                  }
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                    settings.requireTeacherVerification ? "bg-indigo-600" : "bg-slate-300"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                      settings.requireTeacherVerification ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
               </div>
-            ))}
+
+              {/* Setting 2: Sequential Exercise Completion (Requirement 42) */}
+              <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50 flex items-start justify-between gap-4">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">
+                    Sequential Exercise Completion
+                  </h4>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                    When <strong>ON</strong>: Students must finish Exercise 1.1 before unlocking Exercise 1.2.
+                    <br />
+                    When <strong>OFF</strong>: Teachers can assign and students can complete any exercise independently.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleUpdateSetting(
+                      "sequentialExerciseCompletion",
+                      !settings.sequentialExerciseCompletion
+                    )
+                  }
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                    settings.sequentialExerciseCompletion ? "bg-indigo-600" : "bg-slate-300"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                      settings.sequentialExerciseCompletion ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* TAB 3: AUDIT LOGS (Requirement 58) */}
+      <div className={activeTab === "audit" ? "block" : "hidden"}>
+        {visitedTabs.audit && (
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">System Audit Trail</h2>
+              <p className="text-xs text-slate-500">
+                Immutable log of homework assignments, progress updates, verifications, and master content changes.
+              </p>
+            </div>
+
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {auditLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className="p-3 rounded-xl border border-slate-200/80 bg-slate-50/50 flex items-center justify-between text-xs"
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/60 px-1.5 py-0.2 rounded text-[10px]">
+                        {log.action}
+                      </span>
+                      <span className="text-slate-800 font-medium">
+                        {log.user?.name || "System"} ({log.user?.role || "SYSTEM"})
+                      </span>
+                    </div>
+                    {log.metadata && (
+                      <p className="text-[11px] text-slate-500 font-mono">
+                        {log.metadata}
+                      </p>
+                    )}
+                  </div>
+
+                  <span className="text-[10px] text-slate-400">
+                    {new Date(log.timestamp).toLocaleTimeString([], {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* CREATE MODAL */}
       {modalType && (

@@ -22,8 +22,30 @@ import {
 } from "lucide-react";
 
 export function AdminStudentManagement() {
-  const [students, setStudents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [students, setStudents] = useState<any[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("cb_cached_students");
+        if (cached) {
+          const list = JSON.parse(cached);
+          if (Array.isArray(list) && list.length > 0) return list;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("cb_cached_students");
+        if (cached) {
+          const list = JSON.parse(cached);
+          if (Array.isArray(list) && list.length > 0) return false;
+        }
+      } catch {}
+    }
+    return true;
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGrade, setSelectedGrade] = useState("ALL");
 
@@ -56,11 +78,19 @@ export function AdminStudentManagement() {
 
   const fetchStudents = async () => {
     try {
-      setLoading(true);
+      if (students.length === 0) {
+        setLoading(true);
+      }
       const res = await fetch("/api/students");
       if (res.ok) {
         const data = await res.json();
-        setStudents(data.students || []);
+        const loaded = data.students || [];
+        setStudents(loaded);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("cb_cached_students", JSON.stringify(loaded));
+          } catch {}
+        }
       }
     } catch (err) {
       console.error(err);
@@ -428,7 +458,7 @@ export function AdminStudentManagement() {
 
       {/* Students Table / List */}
       <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
-        {loading ? (
+        {loading && students.length === 0 ? (
           <div className="p-12 text-center text-slate-400 text-xs font-semibold flex items-center justify-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" />
             <span>Loading student records...</span>
