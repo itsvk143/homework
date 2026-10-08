@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { QuickProgressModal } from "./QuickProgressModal";
 import { ProofUploadModal } from "./ProofUploadModal";
+import { StudentBookProgressModal } from "./StudentBookProgressModal";
 
 interface StudentDashboardProps {
   currentUser: any;
@@ -44,6 +45,19 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
   const [selectedAssignment, setSelectedAssignment] = useState<any | null>(null);
   const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
   const [isProofModalOpen, setIsProofModalOpen] = useState(false);
+  const [bookProgressModalState, setBookProgressModalState] = useState<{
+    isOpen: boolean;
+    book: any | null;
+    chapter: any | null;
+    exercise: any | null;
+    currentHw: any | null;
+  }>({
+    isOpen: false,
+    book: null,
+    chapter: null,
+    exercise: null,
+    currentHw: null,
+  });
 
   // Fetch homework, books and assigned faculty
   const fetchData = async () => {
@@ -128,6 +142,67 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
     setHomeworkList((prev) =>
       prev.map((item) => (item.id === updatedAssignment.id ? { ...item, ...updatedAssignment } : item))
     );
+  };
+
+  const handleOpenBookExerciseProgress = (book: any, chapter: any, exercise: any | null) => {
+    const hw = exercise ? homeworkList.find((h) => h.exerciseId === exercise.id) : null;
+    setBookProgressModalState({
+      isOpen: true,
+      book,
+      chapter,
+      exercise,
+      currentHw: hw || null,
+    });
+  };
+
+  const handleBookProgressSaved = (data: any) => {
+    if (data.updatedAssignments && Array.isArray(data.updatedAssignments)) {
+      setHomeworkList((prev) => {
+        const updatedMap = new Map(data.updatedAssignments.map((a: any) => [a.exerciseId, a]));
+        const filtered = prev.filter((p) => !updatedMap.has(p.exerciseId));
+        return [...filtered, ...data.updatedAssignments];
+      });
+    } else if (data.assignment) {
+      setHomeworkList((prev) => {
+        const exists = prev.some((p) => p.id === data.assignment.id || p.exerciseId === data.assignment.exerciseId);
+        if (exists) {
+          return prev.map((p) =>
+            p.id === data.assignment.id || p.exerciseId === data.assignment.exerciseId
+              ? { ...p, ...data.assignment }
+              : p
+          );
+        }
+        return [...prev, data.assignment];
+      });
+    }
+  };
+
+  const handleQuickToggleExercise = async (e: React.MouseEvent, book: any, chapter: any, exercise: any) => {
+    e.stopPropagation();
+    const hw = homeworkList.find((h) => h.exerciseId === exercise.id);
+    const isDone = hw?.exerciseStatus === "COMPLETED";
+    const newStatus = isDone ? "NOT_STARTED" : "COMPLETED";
+    const newQuestions = isDone ? 0 : exercise.totalQuestions || 10;
+
+    try {
+      const res = await fetch("/api/student/exercise-progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          exerciseId: exercise.id,
+          studentId: currentUser.id,
+          questionsCompleted: newQuestions,
+          exerciseStatus: newStatus,
+          markCompleted: !isDone,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.assignment) {
+        handleBookProgressSaved(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   // Distinct subjects from assigned books
@@ -621,7 +696,7 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
       {/* TAB 2: MY BOOKS & CHAPTERS EXPLORER (Requirements 27-29) */}
       {activeTab === "books" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6">
             {studentBooks.map((sb) => {
               const b = sb.book;
               const totalExercises = b.chapters?.reduce(
@@ -632,86 +707,198 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
               return (
                 <div
                   key={sb.id}
-                  className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6 space-y-4"
+                  className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6 sm:p-7 space-y-6"
                 >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className="w-12 h-16 rounded-xl text-white font-bold flex items-center justify-center shrink-0 shadow-sm"
-                      style={{ backgroundColor: b.subject.color }}
-                    >
-                      <BookOpen className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <span
-                        className="px-2 py-0.5 rounded text-[10px] font-bold text-white inline-block"
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                    <div className="flex items-start gap-3.5">
+                      <div
+                        className="w-14 h-16 rounded-2xl text-white font-bold flex items-center justify-center shrink-0 shadow-sm"
                         style={{ backgroundColor: b.subject.color }}
                       >
-                        {b.subject.name} {b.classGrade ? `• ${b.classGrade}` : ""}
-                      </span>
-                      <h3 className="text-base font-bold text-slate-900 mt-1">{b.name}</h3>
-                      <p className="text-xs text-slate-500">
-                        {b.chapters?.length || 0} Chapters • {totalExercises} Exercises
-                      </p>
+                        <BookOpen className="w-7 h-7" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="px-2.5 py-0.5 rounded-md text-[10px] font-extrabold text-white inline-block"
+                            style={{ backgroundColor: b.subject.color }}
+                          >
+                            {b.subject.name} {b.classGrade ? `• ${b.classGrade}` : ""}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                            {b.curriculumType || "NEET"}
+                          </span>
+                        </div>
+                        <h3 className="text-lg font-extrabold text-slate-900 mt-1">{b.name}</h3>
+                        <p className="text-xs text-slate-500 font-medium">
+                          {b.chapters?.length || 0} Chapters • {totalExercises} Exercises • Author: {b.author || "Narendra Avasthi"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 bg-slate-50 px-3.5 py-2 rounded-2xl border border-slate-200/70 self-start sm:self-center">
+                      <Layers className="w-4 h-4 text-indigo-500" />
+                      <span>Interactive Question & Status Tracking</span>
                     </div>
                   </div>
 
-                  {/* Chapter-wise progress list (Requirement 28) */}
-                  <div className="space-y-3 pt-2 border-t border-slate-100">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
-                      Chapters & Exercises:
-                    </label>
+                  {/* Chapter-wise progress list with exact Completed/Partially Completed & Question Completed Till */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-extrabold text-slate-400 uppercase tracking-wider block">
+                        Chapters & Exercises:
+                      </label>
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        Click on any exercise to update questions completed till
+                      </span>
+                    </div>
 
-                    {b.chapters?.map((ch: any) => (
-                      <div
-                        key={ch.id}
-                        className="p-3 bg-slate-50 rounded-2xl border border-slate-200/60 space-y-2"
-                      >
-                        <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-                          <span>
-                            Chapter {ch.chapterNumber}: {ch.name}
-                          </span>
-                          <span className="text-slate-500 text-[11px]">
-                            {ch.exercises?.length || 0} Exercises
-                          </span>
-                        </div>
+                    <div className="space-y-3.5">
+                      {b.chapters?.map((ch: any) => {
+                        const exercises = ch.exercises || [];
+                        const completedExCount = exercises.filter((ex: any) => {
+                          const hw = homeworkList.find((h) => h.exerciseId === ex.id);
+                          return hw?.exerciseStatus === "COMPLETED";
+                        }).length;
 
-                        {/* Exercise Pills */}
-                        <div className="flex flex-wrap gap-1.5 pt-1">
-                          {ch.exercises?.map((ex: any) => {
-                            // Find matching homework
-                            const hw = homeworkList.find((h) => h.exerciseId === ex.id);
-                            const isDone = hw?.exerciseStatus === "COMPLETED";
-                            const isInProgress = hw?.exerciseStatus === "IN_PROGRESS";
+                        const totalExCount = exercises.length;
+                        const inProgressExCount = exercises.filter((ex: any) => {
+                          const hw = homeworkList.find((h) => h.exerciseId === ex.id);
+                          return hw?.exerciseStatus === "IN_PROGRESS";
+                        }).length;
 
-                            return (
-                              <button
-                                key={ex.id}
-                                onClick={() => hw && handleOpenProgress(hw)}
-                                className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 border transition-all ${
-                                  isDone
-                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                    : isInProgress
-                                    ? "bg-amber-50 text-amber-700 border-amber-200"
-                                    : "bg-white text-slate-600 border-slate-200"
-                                }`}
-                              >
-                                {isDone ? (
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                ) : isInProgress ? (
-                                  <Clock className="w-3 h-3 text-amber-600" />
-                                ) : null}
-                                <span>{ex.name}</span>
-                                {hw && (
-                                  <span className="text-[9px] opacity-75">
-                                    ({hw.questionsCompleted}/{ex.totalQuestions})
+                        const isChapterCompleted = totalExCount > 0 && completedExCount === totalExCount;
+                        const isChapterPartial = (completedExCount > 0 && completedExCount < totalExCount) || inProgressExCount > 0;
+
+                        return (
+                          <div
+                            key={ch.id}
+                            className="bg-slate-50/70 rounded-2xl border border-slate-200/80 p-4 sm:p-5 space-y-3.5 transition-all hover:border-slate-300"
+                          >
+                            {/* Chapter Header */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-200/60">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="text-sm font-extrabold text-slate-900">
+                                    Chapter {ch.chapterNumber}: {ch.name}
+                                  </h4>
+
+                                  {/* Chapter Status Badge */}
+                                  <span
+                                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                                      isChapterCompleted
+                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                        : isChapterPartial
+                                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                                        : "bg-slate-100 text-slate-600 border-slate-200"
+                                    }`}
+                                  >
+                                    {isChapterCompleted
+                                      ? "✅ Completed (100%)"
+                                      : isChapterPartial
+                                      ? `⏳ Partially Completed (${completedExCount}/${totalExCount} Done)`
+                                      : "⚪ Not Started"}
                                   </span>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
+                                </div>
+                                <p className="text-xs text-slate-500">
+                                  {totalExCount} Exercises • {completedExCount} Completed
+                                </p>
+                              </div>
+
+                              {/* Chapter-Level Action Button */}
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenBookExerciseProgress(b, ch, null)}
+                                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 text-slate-700 border border-slate-200 transition-all shadow-2xs flex items-center gap-1.5"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                                  <span>Update Chapter Status</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Exercises in this chapter */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              {exercises.map((ex: any, idx: number) => {
+                                const hw = homeworkList.find((h) => h.exerciseId === ex.id);
+                                const isDone = hw?.exerciseStatus === "COMPLETED";
+                                const isInProgress = hw?.exerciseStatus === "IN_PROGRESS";
+                                const totalQ = ex.totalQuestions || hw?.totalQuestions || 10;
+                                const doneQ = hw?.questionsCompleted || 0;
+
+                                return (
+                                  <div
+                                    key={ex.id}
+                                    onClick={() => handleOpenBookExerciseProgress(b, ch, ex)}
+                                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 group ${
+                                      isDone
+                                        ? "bg-emerald-50/70 border-emerald-200 hover:border-emerald-300"
+                                        : isInProgress
+                                        ? "bg-amber-50/70 border-amber-200 hover:border-amber-300"
+                                        : "bg-white border-slate-200/80 hover:border-indigo-300 hover:shadow-xs"
+                                    }`}
+                                  >
+                                    <div className="flex items-start gap-2.5 min-w-0">
+                                      {/* Quick Click Toggle */}
+                                      <button
+                                        type="button"
+                                        title={isDone ? "Click to reset" : "Click to mark completed"}
+                                        onClick={(e) => handleQuickToggleExercise(e, b, ch, ex)}
+                                        className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors mt-0.5 border ${
+                                          isDone
+                                            ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700"
+                                            : isInProgress
+                                            ? "bg-amber-500 text-white border-amber-500 hover:bg-amber-600"
+                                            : "bg-slate-50 border-slate-300 text-transparent hover:text-slate-400"
+                                        }`}
+                                      >
+                                        <CheckCircle2 className="w-4 h-4" />
+                                      </button>
+
+                                      <div className="min-w-0">
+                                        <h5 className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
+                                          {ex.name}
+                                        </h5>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                          <span
+                                            className={`text-[10px] font-extrabold ${
+                                              isDone
+                                                ? "text-emerald-700"
+                                                : isInProgress
+                                                ? "text-amber-700"
+                                                : "text-slate-500"
+                                            }`}
+                                          >
+                                            {isDone
+                                              ? `Completed (${totalQ}/${totalQ})`
+                                              : isInProgress
+                                              ? `Till Q${doneQ} of ${totalQ}`
+                                              : `Not Started (0/${totalQ})`}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Action Button */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenBookExerciseProgress(b, ch, ex);
+                                      }}
+                                      className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white text-slate-700 border border-slate-200/90 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-all shadow-2xs shrink-0"
+                                    >
+                                      Update
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               );
@@ -794,6 +981,18 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
         isOpen={isProofModalOpen}
         onClose={() => setIsProofModalOpen(false)}
         onProofSubmitted={handleProgressSaved}
+      />
+
+      {/* Student Book Progress Modal (Chapter & Exercise Level) */}
+      <StudentBookProgressModal
+        isOpen={bookProgressModalState.isOpen}
+        onClose={() => setBookProgressModalState((prev) => ({ ...prev, isOpen: false }))}
+        book={bookProgressModalState.book}
+        chapter={bookProgressModalState.chapter}
+        exercise={bookProgressModalState.exercise}
+        studentId={currentUser?.id}
+        currentHw={bookProgressModalState.currentHw}
+        onSaved={handleBookProgressSaved}
       />
     </div>
   );
