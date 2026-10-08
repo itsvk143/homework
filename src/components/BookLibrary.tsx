@@ -45,6 +45,7 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
   const [assigningBook, setAssigningBook] = useState<any | null>(null);
   const [students, setStudents] = useState<any[]>([]);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [assignStudentFilter, setAssignStudentFilter] = useState<"ELIGIBLE" | "ALL">("ELIGIBLE");
   const [isAssigning, setIsAssigning] = useState(false);
   const [assignSuccess, setAssignSuccess] = useState<string | null>(null);
 
@@ -611,6 +612,7 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
 
   const handleOpenAssign = (book: any) => {
     setAssigningBook(book);
+    setAssignStudentFilter("ELIGIBLE");
     setSelectedStudentIds([]);
     setAssignSuccess(null);
   };
@@ -719,12 +721,28 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
               className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 font-semibold"
             >
               <option value="ALL">All Classes</option>
-              {[4, 5, 6, 7, 8, 9, 10, 11, 12].map((c) => (
-                <option key={c} value={`Class ${c}`}>
-                  Class {c}
-                </option>
-              ))}
-              <option value="Class 11 & 12">Class 11 & 12 (Target)</option>
+              <optgroup label="General School">
+                {[4, 5, 6, 7, 8, 9, 10].map((c) => (
+                  <option key={c} value={`Class ${c}`}>
+                    Class {c}
+                  </option>
+                ))}
+                <option value="Class 11">Class 11 (General + JEE & NEET)</option>
+                <option value="Class 12">Class 12 (General + JEE & NEET)</option>
+              </optgroup>
+              <optgroup label="JEE Stream (Class 11 & 12 JEE)">
+                <option value="Class 11 JEE">Class 11 JEE</option>
+                <option value="Class 12 JEE">Class 12 JEE</option>
+                <option value="JEE Dropper">JEE Dropper</option>
+              </optgroup>
+              <optgroup label="NEET Stream (Class 11 & 12 NEET)">
+                <option value="Class 11 NEET">Class 11 NEET</option>
+                <option value="Class 12 NEET">Class 12 NEET</option>
+                <option value="NEET Dropper">NEET Dropper</option>
+              </optgroup>
+              <optgroup label="Target Combinations">
+                <option value="Class 11 & 12">Class 11 & 12</option>
+              </optgroup>
             </select>
           </div>
 
@@ -1005,72 +1023,190 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
               </button>
             </div>
 
-            <div className="p-5 overflow-y-auto space-y-4">
-              {assignSuccess && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{assignSuccess}</span>
-                </div>
-              )}
+            {/* Target Stream Rules:
+                books of CLASS 11 & 12 jee show to: class 11, class 11 jee, class 12, class 12 jee, class jee droper
+                books of CLASS 11 & 12 neet show to: class 11, class 11 neet, class 12, class 12 neet, class neet droper
+            */}
+            {(() => {
+              const isAssigningJEE =
+                assigningBook.curriculumType === "JEE" ||
+                assigningBook.exam === "JEE" ||
+                assigningBook.name?.toLowerCase().includes("jee");
 
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-700">
-                  Select Students ({selectedStudentIds.length} selected):
-                </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (selectedStudentIds.length === students.length) {
-                      setSelectedStudentIds([]);
-                    } else {
-                      setSelectedStudentIds(students.map((s) => s.id));
-                    }
-                  }}
-                  className="text-xs text-indigo-600 font-semibold hover:text-indigo-800"
-                >
-                  {selectedStudentIds.length === students.length ? "Deselect All" : "Select All"}
-                </button>
-              </div>
+              const isAssigningNEET =
+                assigningBook.curriculumType === "NEET" ||
+                assigningBook.exam === "NEET" ||
+                assigningBook.name?.toLowerCase().includes("neet");
 
-              <div className="space-y-2 max-h-56 overflow-y-auto">
-                {students.map((stu) => {
-                  const isChecked = selectedStudentIds.includes(stu.id);
+              const isStudentEligibleForBook = (stu: any) => {
+                const grade = (stu.studentProfile?.classGrade || "").toLowerCase();
+                if (isAssigningJEE) {
                   return (
-                    <div
-                      key={stu.id}
-                      onClick={() => {
-                        if (isChecked) {
-                          setSelectedStudentIds((prev) => prev.filter((id) => id !== stu.id));
-                        } else {
-                          setSelectedStudentIds((prev) => [...prev, stu.id]);
-                        }
-                      }}
-                      className={`p-3 rounded-xl border cursor-pointer transition-colors flex items-center justify-between text-xs ${
-                        isChecked
-                          ? "bg-indigo-50 border-indigo-500 font-bold text-indigo-900"
-                          : "bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          readOnly
-                          className="w-4 h-4 rounded text-indigo-600 pointer-events-none"
-                        />
-                        <div>
-                          <p>{stu.name}</p>
-                          <p className="text-[10px] text-slate-400 font-normal">
-                            {stu.studentProfile?.classGrade} • Roll #{stu.studentProfile?.rollNo || "--"}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-[10px] text-slate-400">{stu.email}</span>
-                    </div>
+                    grade === "class 11" ||
+                    grade === "class 12" ||
+                    grade === "class 11 jee" ||
+                    grade === "class 12 jee" ||
+                    grade.includes("jee") ||
+                    (grade.includes("jee") && grade.includes("drop"))
                   );
-                })}
-              </div>
-            </div>
+                }
+                if (isAssigningNEET) {
+                  return (
+                    grade === "class 11" ||
+                    grade === "class 12" ||
+                    grade === "class 11 neet" ||
+                    grade === "class 12 neet" ||
+                    grade.includes("neet") ||
+                    (grade.includes("neet") && grade.includes("drop"))
+                  );
+                }
+                if (assigningBook?.classGrade) {
+                  return grade === assigningBook.classGrade.toLowerCase();
+                }
+                return true;
+              };
+
+              const eligibleStudents = students.filter(isStudentEligibleForBook);
+              const displayedStudents =
+                assignStudentFilter === "ELIGIBLE" && eligibleStudents.length > 0
+                  ? eligibleStudents
+                  : students;
+
+              return (
+                <div className="p-5 overflow-y-auto space-y-4">
+                  {assignSuccess && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{assignSuccess}</span>
+                    </div>
+                  )}
+
+                  {/* Target stream banner */}
+                  <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div>
+                      <span className="font-extrabold text-indigo-950 block">
+                        {isAssigningJEE
+                          ? "🎯 Target Classes: Class 11, Class 11 JEE, Class 12, Class 12 JEE, JEE Dropper"
+                          : isAssigningNEET
+                          ? "🎯 Target Classes: Class 11, Class 11 NEET, Class 12, Class 12 NEET, NEET Dropper"
+                          : `🎯 Target Class: ${assigningBook.classGrade}`}
+                      </span>
+                      <span className="text-[11px] text-indigo-700 font-medium">
+                        {eligibleStudents.length} matching student(s) enrolled in these classes
+                      </span>
+                    </div>
+
+                    <div className="flex rounded-xl bg-white p-0.5 border border-indigo-200 text-[11px] font-bold self-start sm:self-auto shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setAssignStudentFilter("ELIGIBLE")}
+                        className={`px-2.5 py-1 rounded-lg transition-colors ${
+                          assignStudentFilter === "ELIGIBLE"
+                            ? "bg-indigo-600 text-white"
+                            : "text-indigo-900 hover:bg-slate-50"
+                        }`}
+                      >
+                        Target ({eligibleStudents.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAssignStudentFilter("ALL")}
+                        className={`px-2.5 py-1 rounded-lg transition-colors ${
+                          assignStudentFilter === "ALL"
+                            ? "bg-indigo-600 text-white"
+                            : "text-indigo-900 hover:bg-slate-50"
+                        }`}
+                      >
+                        All ({students.length})
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700">
+                      Select Students ({selectedStudentIds.length} selected):
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {eligibleStudents.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const eligibleIds = eligibleStudents.map((s) => s.id);
+                            setSelectedStudentIds(eligibleIds);
+                          }}
+                          className="text-xs text-emerald-600 font-bold hover:text-emerald-800"
+                        >
+                          Select All Target ({eligibleStudents.length})
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedStudentIds.length === displayedStudents.length) {
+                            setSelectedStudentIds([]);
+                          } else {
+                            setSelectedStudentIds(displayedStudents.map((s) => s.id));
+                          }
+                        }}
+                        className="text-xs text-indigo-600 font-semibold hover:text-indigo-800"
+                      >
+                        {selectedStudentIds.length === displayedStudents.length
+                          ? "Deselect All"
+                          : "Select All"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 max-h-56 overflow-y-auto">
+                    {displayedStudents.map((stu) => {
+                      const isChecked = selectedStudentIds.includes(stu.id);
+                      const isEligible = isStudentEligibleForBook(stu);
+
+                      return (
+                        <div
+                          key={stu.id}
+                          onClick={() => {
+                            if (isChecked) {
+                              setSelectedStudentIds((prev) => prev.filter((id) => id !== stu.id));
+                            } else {
+                              setSelectedStudentIds((prev) => [...prev, stu.id]);
+                            }
+                          }}
+                          className={`p-3 rounded-xl border cursor-pointer transition-colors flex items-center justify-between text-xs ${
+                            isChecked
+                              ? "bg-indigo-50 border-indigo-500 font-bold text-indigo-900"
+                              : "bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              readOnly
+                              className="w-4 h-4 rounded text-indigo-600 pointer-events-none"
+                            />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-bold">{stu.name}</p>
+                                {isEligible && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    Target Match
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-normal">
+                                {stu.studentProfile?.classGrade} • Roll #{stu.studentProfile?.rollNo || "--"}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-slate-400">{stu.email}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
               <button

@@ -13,38 +13,134 @@ export async function GET(req: NextRequest) {
     const bookType = searchParams.get("bookType");
     const search = searchParams.get("search")?.trim().toLowerCase();
 
-    const whereClause: any = {
-      status: { not: "ARCHIVED" },
-    };
+    const andClauses: any[] = [{ status: { not: "ARCHIVED" } }];
 
     if (subjectId && subjectId !== "ALL") {
-      whereClause.subjectId = subjectId;
+      andClauses.push({ subjectId });
     }
     if (curriculumType && curriculumType !== "ALL") {
-      whereClause.curriculumType = curriculumType;
-    }
-    if (classGrade && classGrade !== "ALL") {
-      whereClause.classGrade = classGrade;
+      andClauses.push({ curriculumType });
     }
     if (exam && exam !== "ALL") {
-      whereClause.exam = exam;
+      andClauses.push({ exam });
     }
     if (branch && branch !== "ALL") {
-      whereClause.branch = branch;
+      andClauses.push({ branch });
     }
     if (bookType && bookType !== "ALL") {
-      whereClause.bookType = bookType;
+      andClauses.push({ bookType });
+    }
+
+    if (classGrade && classGrade !== "ALL") {
+      const lower = classGrade.trim().toLowerCase();
+
+      // Rule: Books of CLASS 11 & 12 JEE show to: Class 11, Class 11 JEE, Class 12, Class 12 JEE, JEE Dropper
+      // Rule: Books of CLASS 11 & 12 NEET show to: Class 11, Class 11 NEET, Class 12, Class 12 NEET, NEET Dropper
+
+      if (lower === "class 11") {
+        // Shows Class 11 books, plus Class 11 & 12 books (both JEE and NEET)
+        andClauses.push({
+          OR: [
+            { classGrade: "Class 11" },
+            { classGrade: "Class 11 & 12" },
+          ],
+        });
+      } else if (lower === "class 12") {
+        // Shows Class 12 books, plus Class 11 & 12 books (both JEE and NEET)
+        andClauses.push({
+          OR: [
+            { classGrade: "Class 12" },
+            { classGrade: "Class 11 & 12" },
+          ],
+        });
+      } else if (lower === "class 11 jee") {
+        // Books of Class 11, Class 11 JEE, and Class 11 & 12 JEE
+        andClauses.push({
+          OR: [
+            { classGrade: "Class 11 JEE" },
+            { classGrade: "Class 11" },
+            {
+              classGrade: "Class 11 & 12",
+              OR: [{ curriculumType: "JEE" }, { exam: "JEE" }, { name: { contains: "JEE" } }],
+            },
+          ],
+        });
+      } else if (lower === "class 12 jee") {
+        // Books of Class 12, Class 12 JEE, and Class 11 & 12 JEE
+        andClauses.push({
+          OR: [
+            { classGrade: "Class 12 JEE" },
+            { classGrade: "Class 12" },
+            {
+              classGrade: "Class 11 & 12",
+              OR: [{ curriculumType: "JEE" }, { exam: "JEE" }, { name: { contains: "JEE" } }],
+            },
+          ],
+        });
+      } else if (lower.includes("jee") && lower.includes("drop")) {
+        // Books of JEE Dropper and Class 11 & 12 JEE
+        andClauses.push({
+          OR: [
+            { classGrade: "JEE Dropper" },
+            {
+              classGrade: "Class 11 & 12",
+              OR: [{ curriculumType: "JEE" }, { exam: "JEE" }, { name: { contains: "JEE" } }],
+            },
+          ],
+        });
+      } else if (lower === "class 11 neet") {
+        // Books of Class 11, Class 11 NEET, and Class 11 & 12 NEET
+        andClauses.push({
+          OR: [
+            { classGrade: "Class 11 NEET" },
+            { classGrade: "Class 11" },
+            {
+              classGrade: "Class 11 & 12",
+              OR: [{ curriculumType: "NEET" }, { exam: "NEET" }, { name: { contains: "NEET" } }],
+            },
+          ],
+        });
+      } else if (lower === "class 12 neet") {
+        // Books of Class 12, Class 12 NEET, and Class 11 & 12 NEET
+        andClauses.push({
+          OR: [
+            { classGrade: "Class 12 NEET" },
+            { classGrade: "Class 12" },
+            {
+              classGrade: "Class 11 & 12",
+              OR: [{ curriculumType: "NEET" }, { exam: "NEET" }, { name: { contains: "NEET" } }],
+            },
+          ],
+        });
+      } else if (lower.includes("neet") && lower.includes("drop")) {
+        // Books of NEET Dropper and Class 11 & 12 NEET
+        andClauses.push({
+          OR: [
+            { classGrade: "NEET Dropper" },
+            {
+              classGrade: "Class 11 & 12",
+              OR: [{ curriculumType: "NEET" }, { exam: "NEET" }, { name: { contains: "NEET" } }],
+            },
+          ],
+        });
+      } else {
+        andClauses.push({ classGrade: classGrade.trim() });
+      }
     }
 
     if (search) {
-      whereClause.OR = [
-        { name: { contains: search } },
-        { author: { contains: search } },
-        { publisher: { contains: search } },
-        { branch: { contains: search } },
-        { subject: { name: { contains: search } } },
-      ];
+      andClauses.push({
+        OR: [
+          { name: { contains: search } },
+          { author: { contains: search } },
+          { publisher: { contains: search } },
+          { branch: { contains: search } },
+          { subject: { name: { contains: search } } },
+        ],
+      });
     }
+
+    const whereClause: any = andClauses.length > 1 ? { AND: andClauses } : andClauses[0];
 
     const books = await prisma.book.findMany({
       where: whereClause,
