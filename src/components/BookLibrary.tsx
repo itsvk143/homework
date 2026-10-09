@@ -10,6 +10,9 @@ import {
   Sparkles,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
+  Maximize2,
+  Minimize2,
   UserCheck,
   CheckCircle2,
   Atom,
@@ -40,6 +43,7 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
 
   // Inspect book chapters modal
   const [inspectBook, setInspectBook] = useState<any | null>(null);
+  const [inspectExpandedChapters, setInspectExpandedChapters] = useState<Record<string, boolean>>({});
 
   // Assign modal state
   const [assigningBook, setAssigningBook] = useState<any | null>(null);
@@ -937,41 +941,87 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
             </div>
 
             <div className="p-5 overflow-y-auto space-y-3">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
-                Predefined Chapters & Exercises ({inspectBook.chapters?.length || 0}):
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                  Predefined Chapters & Exercises ({inspectBook.chapters?.length || 0}):
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      const all: Record<string, boolean> = {};
+                      inspectBook.chapters?.forEach((c: any) => { all[c.id] = true; });
+                      setInspectExpandedChapters(all);
+                    }}
+                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Maximize2 className="w-3 h-3" />
+                    <span>Expand All</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      const none: Record<string, boolean> = {};
+                      inspectBook.chapters?.forEach((c: any) => { none[c.id] = false; });
+                      setInspectExpandedChapters(none);
+                    }}
+                    className="text-[11px] font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Minimize2 className="w-3 h-3" />
+                    <span>Compress All</span>
+                  </button>
+                </div>
+              </div>
 
               {inspectBook.chapters?.length === 0 ? (
                 <p className="text-xs text-slate-400 py-4 text-center">
                   No chapters defined yet.
                 </p>
               ) : (
-                inspectBook.chapters?.map((ch: any) => (
-                  <div
-                    key={ch.id}
-                    className="p-3 bg-slate-50 rounded-2xl border border-slate-200/60 space-y-2"
-                  >
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-                      <span>
-                        Ch {ch.chapterNumber}: {ch.name}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        {ch.exercises?.length || 0} exercises
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {ch.exercises?.map((ex: any) => (
-                        <span
-                          key={ex.id}
-                          className="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-white border border-slate-200 text-slate-700"
-                        >
-                          {ex.name} ({ex.totalQuestions} Qs)
+                inspectBook.chapters?.map((ch: any) => {
+                  const isChExpanded = inspectExpandedChapters[ch.id] !== false; // Default expanded
+                  return (
+                    <div
+                      key={ch.id}
+                      className="p-3.5 bg-slate-50/90 rounded-2xl border border-slate-200/80 space-y-2.5 transition-all hover:border-slate-300"
+                    >
+                      <div
+                        onClick={() =>
+                          setInspectExpandedChapters((prev) => ({
+                            ...prev,
+                            [ch.id]: prev[ch.id] === undefined ? false : !prev[ch.id],
+                          }))
+                        }
+                        className="flex items-center justify-between text-xs font-bold text-slate-800 cursor-pointer select-none"
+                      >
+                        <div className="flex items-center gap-2">
+                          {isChExpanded ? (
+                            <ChevronUp className="w-4 h-4 text-slate-400" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-slate-400" />
+                          )}
+                          <span>
+                            Ch {ch.chapterNumber}: {ch.name}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-medium bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                          {ch.exercises?.length || 0} exercises
                         </span>
-                      ))}
+                      </div>
+
+                      {isChExpanded && (
+                        <div className="flex flex-wrap gap-1.5 pt-1 pl-6">
+                          {ch.exercises?.map((ex: any) => (
+                            <span
+                              key={ex.id}
+                              className="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-white border border-slate-200 text-slate-700 shadow-2xs"
+                            >
+                              {ex.name} ({ex.totalQuestions} Qs)
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 

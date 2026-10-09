@@ -10,6 +10,10 @@ import {
   Play,
   Upload,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Maximize2,
+  Minimize2,
   Filter,
   Sparkles,
   Layers,
@@ -40,6 +44,40 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
   const [studentBooks, setStudentBooks] = useState<any[]>([]);
   const [facultyAssignments, setFacultyAssignments] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // Book & Chapter Expand/Compress State
+  const [expandedBooks, setExpandedBooks] = useState<Record<string, boolean>>({});
+  const [expandedChapters, setExpandedChapters] = useState<Record<string, boolean>>({});
+
+  const toggleBookExpansion = (bookId: string) => {
+    setExpandedBooks((prev) => ({
+      ...prev,
+      [bookId]: prev[bookId] === undefined ? false : !prev[bookId],
+    }));
+  };
+
+  const expandAllBooks = () => {
+    const next: Record<string, boolean> = {};
+    studentBooks.forEach((sb) => {
+      next[sb.id] = true;
+    });
+    setExpandedBooks(next);
+  };
+
+  const compressAllBooks = () => {
+    const next: Record<string, boolean> = {};
+    studentBooks.forEach((sb) => {
+      next[sb.id] = false;
+    });
+    setExpandedBooks(next);
+  };
+
+  const toggleChapterExpansion = (chId: string) => {
+    setExpandedChapters((prev) => ({
+      ...prev,
+      [chId]: prev[chId] === undefined ? false : !prev[chId],
+    }));
+  };
 
   // Modals state
   const [selectedAssignment, setSelectedAssignment] = useState<any | null>(null);
@@ -696,18 +734,68 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
       {/* TAB 2: MY BOOKS & CHAPTERS EXPLORER (Requirements 27-29) */}
       {activeTab === "books" && (
         <div className="space-y-6">
+          {/* Top Control Bar: Expand/Compress All */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-3xl border border-slate-200/90 shadow-2xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
+                <BookOpen className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs font-extrabold text-slate-900">
+                  My Enrolled Books ({studentBooks.length})
+                </h3>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Expand or compress books to view chapter breakdowns and update question progress
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={expandAllBooks}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all cursor-pointer shadow-2xs"
+                title="Expand all books and chapters"
+              >
+                <Maximize2 className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Expand All Books</span>
+              </button>
+              <button
+                onClick={compressAllBooks}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all cursor-pointer shadow-2xs"
+                title="Compress all books to compact summary"
+              >
+                <Minimize2 className="w-3.5 h-3.5 text-slate-500" />
+                <span>Compress All Books</span>
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-6">
             {studentBooks.map((sb) => {
               const b = sb.book;
+              const isBookExpanded = expandedBooks[sb.id] !== false; // Default expanded unless compressed
               const totalExercises = b.chapters?.reduce(
                 (sum: number, ch: any) => sum + (ch.exercises?.length || 0),
                 0
               ) || 0;
 
+              // Calculate completed exercises count in this book
+              let completedExercisesInBook = 0;
+              b.chapters?.forEach((ch: any) => {
+                ch.exercises?.forEach((ex: any) => {
+                  const hw = homeworkList.find((h) => h.exerciseId === ex.id);
+                  if (hw?.exerciseStatus === "COMPLETED") completedExercisesInBook++;
+                });
+              });
+
+              const bookCompletionRate = totalExercises > 0
+                ? Math.round((completedExercisesInBook / totalExercises) * 100)
+                : 0;
+
               return (
                 <div
                   key={sb.id}
-                  className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6 sm:p-7 space-y-6"
+                  className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6 sm:p-7 space-y-6 transition-all"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
                     <div className="flex items-start gap-3.5">
@@ -736,14 +824,65 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 bg-slate-50 px-3.5 py-2 rounded-2xl border border-slate-200/70 self-start sm:self-center">
-                      <Layers className="w-4 h-4 text-indigo-500" />
-                      <span>Interactive Question & Status Tracking</span>
+                    <div className="flex items-center gap-2.5 self-start sm:self-center flex-wrap">
+                      {/* Overall Book Progress Badge */}
+                      <span className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs font-bold text-slate-700">
+                        {completedExercisesInBook}/{totalExercises} Exercises Done ({bookCompletionRate}%)
+                      </span>
+
+                      {/* Expand / Compress Book Button */}
+                      <button
+                        onClick={() => toggleBookExpansion(sb.id)}
+                        className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                          isBookExpanded
+                            ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+                            : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/10"
+                        }`}
+                      >
+                        {isBookExpanded ? (
+                          <>
+                            <ChevronUp className="w-4 h-4" />
+                            <span>Compress Book</span>
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="w-4 h-4" />
+                            <span>Expand Book ({b.chapters?.length || 0} Chapters)</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
 
-                  {/* Chapter-wise progress list with exact Completed/Partially Completed & Question Completed Till */}
-                  <div className="space-y-4">
+                  {/* Compressed Book Summary View */}
+                  {!isBookExpanded && (
+                    <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1.5 flex-1">
+                        <div className="flex items-center justify-between text-xs font-semibold text-slate-600 max-w-md">
+                          <span>Overall Book Completion</span>
+                          <span className="font-extrabold text-indigo-600">{bookCompletionRate}%</span>
+                        </div>
+                        <div className="w-full max-w-md bg-slate-200/80 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-indigo-600 h-full rounded-full transition-all duration-300"
+                            style={{ width: `${bookCompletionRate}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => toggleBookExpansion(sb.id)}
+                        className="px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 self-start sm:self-center"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                        <span>Expand Chapters & Exercises</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Expanded Chapter-wise progress list */}
+                  {isBookExpanded && (
+                    <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-extrabold text-slate-400 uppercase tracking-wider block">
                         Chapters & Exercises:
@@ -900,6 +1039,7 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
                       })}
                     </div>
                   </div>
+                  )}
                 </div>
               );
             })}

@@ -51,9 +51,18 @@ export async function GET(req: NextRequest) {
           },
         },
         assignedBooksAsStudent: {
-          select: {
-            id: true,
-            bookId: true,
+          include: {
+            book: {
+              include: {
+                subject: true,
+                chapters: {
+                  include: {
+                    exercises: true,
+                  },
+                  orderBy: { chapterNumber: "asc" },
+                },
+              },
+            },
           },
         },
         _count: {
@@ -102,9 +111,18 @@ export async function GET(req: NextRequest) {
               },
             },
             assignedBooksAsStudent: {
-              select: {
-                id: true,
-                bookId: true,
+              include: {
+                book: {
+                  include: {
+                    subject: true,
+                    chapters: {
+                      include: {
+                        exercises: true,
+                      },
+                      orderBy: { chapterNumber: "asc" },
+                    },
+                  },
+                },
               },
             },
             _count: {

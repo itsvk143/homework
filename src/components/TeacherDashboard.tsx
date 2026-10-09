@@ -20,6 +20,10 @@ import {
   X,
   BookOpen,
   Layers,
+  ChevronDown,
+  ChevronUp,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { BookLibrary } from "./BookLibrary";
 import { TeacherChapterProgress } from "./TeacherChapterProgress";
@@ -59,6 +63,7 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
 
   // Student Profile Drilldown state
   const [selectedStudentProfile, setSelectedStudentProfile] = useState<any | null>(null);
+  const [expandedProfileBooks, setExpandedProfileBooks] = useState<Record<string, boolean>>({});
 
   // Fetch initial data
   const fetchData = async () => {
@@ -1162,7 +1167,175 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
               </button>
             </div>
 
-            <div className="p-5 overflow-y-auto space-y-4">
+            <div className="p-5 overflow-y-auto space-y-5">
+              {/* ASSIGNED BOOKS SECTION WITH EXPAND / COMPRESS CONTROLS */}
+              {(() => {
+                const assignedBooks = selectedStudentProfile.assignedBooksAsStudent || [];
+                if (assignedBooks.length === 0) return null;
+
+                const expandAllProfileBooks = () => {
+                  const next: Record<string, boolean> = {};
+                  assignedBooks.forEach((ab: any) => {
+                    const id = ab.book?.id || ab.id;
+                    next[id] = true;
+                  });
+                  setExpandedProfileBooks(next);
+                };
+
+                const compressAllProfileBooks = () => {
+                  const next: Record<string, boolean> = {};
+                  assignedBooks.forEach((ab: any) => {
+                    const id = ab.book?.id || ab.id;
+                    next[id] = false;
+                  });
+                  setExpandedProfileBooks(next);
+                };
+
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                        Assigned Books & Chapters ({assignedBooks.length}):
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={expandAllProfileBooks}
+                          className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Maximize2 className="w-3 h-3" />
+                          <span>Expand All</span>
+                        </button>
+                        <button
+                          onClick={compressAllProfileBooks}
+                          className="text-[11px] font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Minimize2 className="w-3 h-3" />
+                          <span>Compress All</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {assignedBooks.map((ab: any) => {
+                        const b = ab.book;
+                        if (!b) return null;
+                        const bookId = b.id || ab.id;
+                        const isExpanded = expandedProfileBooks[bookId] !== false; // Default expanded
+                        const chapters = b.chapters || [];
+                        const totalEx = chapters.reduce(
+                          (sum: number, ch: any) => sum + (ch.exercises?.length || 0),
+                          0
+                        );
+
+                        return (
+                          <div
+                            key={bookId}
+                            className="bg-slate-50/80 rounded-2xl border border-slate-200 p-4 space-y-3 transition-all"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-2.5">
+                                <div
+                                  className="w-10 h-10 rounded-xl text-white font-bold flex items-center justify-center shrink-0 shadow-2xs"
+                                  style={{ backgroundColor: b.subject?.color || "#4F46E5" }}
+                                >
+                                  <BookOpen className="w-5 h-5" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span
+                                      className="px-2 py-0.5 rounded text-[10px] font-extrabold text-white"
+                                      style={{ backgroundColor: b.subject?.color || "#4F46E5" }}
+                                    >
+                                      {b.subject?.name || "Subject"}
+                                    </span>
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white text-slate-600 border border-slate-200">
+                                      {b.classGrade || "Class"}
+                                    </span>
+                                  </div>
+                                  <h4 className="text-sm font-bold text-slate-900 mt-1">
+                                    {b.name}
+                                  </h4>
+                                  <p className="text-[11px] text-slate-500">
+                                    {chapters.length} Chapters • {totalEx} Exercises • {b.author || "Faculty"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={() =>
+                                  setExpandedProfileBooks((prev) => ({
+                                    ...prev,
+                                    [bookId]: prev[bookId] === undefined ? false : !prev[bookId],
+                                  }))
+                                }
+                                className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                                  isExpanded
+                                    ? "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                    : "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+                                }`}
+                              >
+                                {isExpanded ? (
+                                  <>
+                                    <ChevronUp className="w-3.5 h-3.5" />
+                                    <span>Compress</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                    <span>Expand ({chapters.length} Chs)</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+
+                            {/* Expanded Chapters & Exercises */}
+                            {isExpanded && chapters.length > 0 && (
+                              <div className="space-y-2 pt-2 border-t border-slate-200/60">
+                                {chapters.map((ch: any) => (
+                                  <div
+                                    key={ch.id}
+                                    className="p-2.5 bg-white rounded-xl border border-slate-200/70 space-y-1.5 text-xs"
+                                  >
+                                    <div className="flex items-center justify-between font-bold text-slate-800">
+                                      <span>
+                                        Ch {ch.chapterNumber}: {ch.name}
+                                      </span>
+                                      <span className="text-[10px] text-slate-400 font-normal">
+                                        {ch.exercises?.length || 0} exercises
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {ch.exercises?.map((ex: any) => {
+                                        const hw = homeworkList.find(
+                                          (h) => h.studentId === selectedStudentProfile.id && h.exerciseId === ex.id
+                                        );
+                                        const isDone = hw?.exerciseStatus === "COMPLETED";
+                                        return (
+                                          <span
+                                            key={ex.id}
+                                            className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                              isDone
+                                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                                : "bg-slate-50 text-slate-600 border-slate-200"
+                                            }`}
+                                          >
+                                            {ex.name} ({hw?.questionsCompleted || 0}/{ex.totalQuestions} Qs)
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
                 Exercise Progress Table:
               </label>
