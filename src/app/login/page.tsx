@@ -178,8 +178,8 @@ export default function LoginPage() {
   if (checkingSession) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/25 animate-pulse mb-3">
-          <GraduationCap className="w-7 h-7" />
+        <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-lg shadow-sky-500/15 border border-slate-200/80 overflow-hidden mb-3 animate-pulse">
+          <img src="/logo.jpg" alt="TRACKER Logo" className="w-full h-full object-contain" />
         </div>
         <p className="text-xs font-semibold text-slate-600 tracking-wide animate-pulse">
           Restoring your session...
@@ -209,8 +209,8 @@ export default function LoginPage() {
 
           {/* Logo Header */}
           <div className="flex items-center justify-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-              <GraduationCap className="w-7 h-7" />
+            <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-md shadow-sky-500/15 border border-slate-200/80 overflow-hidden shrink-0">
+              <img src="/logo.jpg" alt="TRACKER Logo" className="w-full h-full object-contain" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">

@@ -260,8 +260,8 @@ export default function OnboardingPage() {
       <div className="sm:mx-auto sm:w-full sm:max-w-xl">
         {/* Brand Header */}
         <div className="flex items-center justify-center gap-3 mb-2">
-          <div className="w-11 h-11 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-            <GraduationCap className="w-7 h-7" />
+          <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-md shadow-sky-500/15 border border-slate-200/80 overflow-hidden shrink-0">
+            <img src="/logo.jpg" alt="TRACKER Logo" className="w-full h-full object-contain" />
           </div>
           <div>
             <div className="flex items-center gap-1.5">

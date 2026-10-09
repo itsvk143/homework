@@ -108,8 +108,12 @@ export function Navbar({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         {/* Brand Logo */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl gradient-brand flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-            <GraduationCap className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-xl overflow-hidden bg-white flex items-center justify-center shadow-md shadow-sky-500/15 border border-slate-200/80 shrink-0">
+            <img
+              src="/logo.jpg"
+              alt="TRACKER Logo"
+              className="w-full h-full object-contain"
+            />
           </div>
           <div>
             <div className="flex items-center gap-2">
