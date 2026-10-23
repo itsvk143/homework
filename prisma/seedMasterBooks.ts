@@ -7,11 +7,31 @@ const prisma = new PrismaClient();
 export async function seedMasterBooks() {
   console.log(`📚 Seeding ${MASTER_BOOKS.length} Master Books (NCERT Classes 4–12 + JEE & NEET)...`);
 
+  // 1. Preload existing subjects and books with all chapters and exercises in one shot
+  const existingSubjects = await prisma.subject.findMany();
+  const subjectMap = new Map<string, any>();
+  for (const s of existingSubjects) {
+    subjectMap.set(`${s.name}_${s.classGrade}`, s);
+  }
+
+  const existingBooks = await prisma.book.findMany({
+    include: {
+      chapters: {
+        include: {
+          exercises: true,
+        },
+      },
+    },
+  });
+  const bookMap = new Map<string, any>();
+  for (const b of existingBooks) {
+    bookMap.set(b.bookCode, b);
+  }
+
   for (const bookData of MASTER_BOOKS) {
     // 1. Ensure Subject exists
-    let subject = await prisma.subject.findFirst({
-      where: { name: bookData.subjectName, classGrade: bookData.classGrade },
-    });
+    const subKey = `${bookData.subjectName}_${bookData.classGrade}`;
+    let subject = subjectMap.get(subKey);
 
     if (!subject) {
       subject = await prisma.subject.create({
@@ -32,16 +52,13 @@ export async function seedMasterBooks() {
           status: "ACTIVE",
         },
       });
+      subjectMap.set(subKey, subject);
     }
 
     // 2. Upsert Book by bookCode
-    const existingBook = await prisma.book.findFirst({
-      where: { bookCode: bookData.bookCode },
-    });
+    let book = bookMap.get(bookData.bookCode);
 
-    let book = existingBook;
-
-    if (!existingBook) {
+    if (!book) {
       book = await prisma.book.create({
         data: {
           bookCode: bookData.bookCode,
@@ -60,16 +77,27 @@ export async function seedMasterBooks() {
           coverUrl: bookData.coverUrl || null,
           status: "ACTIVE",
         },
+        include: {
+          chapters: {
+            include: {
+              exercises: true,
+            },
+          },
+        },
       });
+      bookMap.set(bookData.bookCode, book);
     }
 
     if (!book) continue;
 
-    // 3. Upsert Chapters and Exercises
+    // 3. Upsert Chapters and Exercises in memory cache
+    const chapterMap = new Map<number, any>();
+    for (const ch of book.chapters || []) {
+      chapterMap.set(ch.chapterNumber, ch);
+    }
+
     for (const chData of bookData.chapters) {
-      let chapter = await prisma.chapter.findFirst({
-        where: { bookId: book.id, chapterNumber: chData.chapterNumber },
-      });
+      let chapter = chapterMap.get(chData.chapterNumber);
 
       if (!chapter) {
         chapter = await prisma.chapter.create({
@@ -80,7 +108,11 @@ export async function seedMasterBooks() {
             displayOrder: chData.chapterNumber,
             status: "ACTIVE",
           },
+          include: {
+            exercises: true,
+          },
         });
+        chapterMap.set(chData.chapterNumber, chapter);
       } else if (chapter.name !== chData.name) {
         chapter = await prisma.chapter.update({
           where: { id: chapter.id },
@@ -88,16 +120,23 @@ export async function seedMasterBooks() {
             name: chData.name,
             displayOrder: chData.chapterNumber,
           },
+          include: {
+            exercises: true,
+          },
         });
+        chapterMap.set(chData.chapterNumber, chapter);
+      }
+
+      const exerciseMap = new Map<string, any>();
+      for (const ex of chapter.exercises || []) {
+        exerciseMap.set(ex.exerciseNumber, ex);
       }
 
       for (const exData of chData.exercises) {
-        const existingEx = await prisma.exercise.findFirst({
-          where: { chapterId: chapter.id, exerciseNumber: exData.exerciseNumber },
-        });
+        const existingEx = exerciseMap.get(exData.exerciseNumber);
 
         if (!existingEx) {
-          await prisma.exercise.create({
+          const createdEx = await prisma.exercise.create({
             data: {
               chapterId: chapter.id,
               name: exData.name,
@@ -108,38 +147,47 @@ export async function seedMasterBooks() {
               status: "ACTIVE",
             },
           });
+          exerciseMap.set(exData.exerciseNumber, createdEx);
         } else {
-          await prisma.exercise.update({
-            where: { id: existingEx.id },
-            data: {
-              name: exData.name,
-              totalQuestions: exData.totalQuestions,
-              questionRange: exData.questionRange || null,
-              pageNumber: exData.pageNumber || null,
-            },
-          });
+          const needsUpdate =
+            existingEx.name !== exData.name ||
+            existingEx.totalQuestions !== exData.totalQuestions ||
+            (existingEx.questionRange || null) !== (exData.questionRange || null) ||
+            (existingEx.pageNumber || null) !== (exData.pageNumber || null);
+
+          if (needsUpdate) {
+            const updatedEx = await prisma.exercise.update({
+              where: { id: existingEx.id },
+              data: {
+                name: exData.name,
+                totalQuestions: exData.totalQuestions,
+                questionRange: exData.questionRange || null,
+                pageNumber: exData.pageNumber || null,
+              },
+            });
+            exerciseMap.set(exData.exerciseNumber, updatedEx);
+          }
         }
       }
 
-      // Remove obsolete exercises no longer in master definitions for this chapter
-      const validExerciseNumbers = chData.exercises.map((e) => e.exerciseNumber);
-      const obsoleteExercises = await prisma.exercise.findMany({
-        where: {
-          chapterId: chapter.id,
-          exerciseNumber: { notIn: validExerciseNumbers },
-        },
-      });
+      // Remove obsolete exercises only if any exist in DB
+      const validExerciseNumbers = new Set(chData.exercises.map((e) => e.exerciseNumber));
+      const obsoleteExercises = (chapter.exercises || []).filter(
+        (e: any) => !validExerciseNumbers.has(e.exerciseNumber)
+      );
 
-      for (const obsEx of obsoleteExercises) {
-        await prisma.homeworkProgressHistory.deleteMany({
-          where: { exerciseId: obsEx.id },
-        });
-        await prisma.homeworkAssignment.deleteMany({
-          where: { exerciseId: obsEx.id },
-        });
-        await prisma.exercise.delete({
-          where: { id: obsEx.id },
-        });
+      if (obsoleteExercises.length > 0) {
+        for (const obsEx of obsoleteExercises) {
+          await prisma.homeworkProgressHistory.deleteMany({
+            where: { exerciseId: obsEx.id },
+          });
+          await prisma.homeworkAssignment.deleteMany({
+            where: { exerciseId: obsEx.id },
+          });
+          await prisma.exercise.delete({
+            where: { id: obsEx.id },
+          });
+        }
       }
     }
   }
@@ -163,13 +211,27 @@ export async function seedMasterBooks() {
       const moleChapter = neetAvasthiBook.chapters[0];
       const exercises = moleChapter.exercises;
 
-      // Assign book to students
+      // Assign book to students (preloaded)
+      const existingStudentBooks = await prisma.studentBook.findMany({
+        where: { bookId: neetAvasthiBook.id },
+      });
+      const assignedStudentIdSet = new Set(existingStudentBooks.map((sb) => sb.studentId));
+
       for (const st of students) {
-        await prisma.studentBook.upsert({
-          where: { studentId_bookId: { studentId: st.id, bookId: neetAvasthiBook.id } },
-          create: { studentId: st.id, bookId: neetAvasthiBook.id, assignedByTeacherId: teacher.id },
-          update: {},
-        });
+        if (!assignedStudentIdSet.has(st.id)) {
+          await prisma.studentBook.create({
+            data: { studentId: st.id, bookId: neetAvasthiBook.id, assignedByTeacherId: teacher.id },
+          });
+        }
+      }
+
+      // Preload existing homework assignments for moleChapter
+      const existingHwList = await prisma.homeworkAssignment.findMany({
+        where: { chapterId: moleChapter.id },
+      });
+      const existingHwMap = new Map<string, any>();
+      for (const h of existingHwList) {
+        existingHwMap.set(`${h.studentId}_${h.exerciseId}`, h);
       }
 
       // Sample progress patterns matching Level 1 to Level 4:
@@ -217,12 +279,7 @@ export async function seedMasterBooks() {
             hwStatus = "OVERDUE";
           }
 
-          const existingHw = await prisma.homeworkAssignment.findFirst({
-            where: {
-              studentId: st.id,
-              exerciseId: ex.id,
-            },
-          });
+          const existingHw = existingHwMap.get(`${st.id}_${ex.id}`);
 
           if (!existingHw) {
             const hw = await prisma.homeworkAssignment.create({
