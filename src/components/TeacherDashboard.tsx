@@ -989,6 +989,22 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
                           ))}
                       </div>
                     )}
+
+                    {/* Assigned Books */}
+                    {stu.assignedBooksAsStudent && stu.assignedBooksAsStudent.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {stu.assignedBooksAsStudent.map((ab: any) => (
+                          <span
+                            key={ab.id || ab.bookId}
+                            className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/80 truncate max-w-[220px]"
+                            title={ab.book?.name}
+                          >
+                            <BookOpen className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                            <span className="truncate">{ab.book?.name}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 

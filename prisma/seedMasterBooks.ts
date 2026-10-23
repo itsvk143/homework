@@ -25,7 +25,9 @@ export async function seedMasterBooks() {
   });
   const bookMap = new Map<string, any>();
   for (const b of existingBooks) {
-    bookMap.set(b.bookCode, b);
+    if (b.bookCode) {
+      bookMap.set(b.bookCode, b);
+    }
   }
 
   for (const bookData of MASTER_BOOKS) {
