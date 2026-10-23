@@ -26,6 +26,7 @@ import {
   X,
   Info,
   RefreshCw,
+  FileText,
 } from "lucide-react";
 
 interface TeacherChapterProgressProps {
@@ -45,13 +46,16 @@ export function TeacherChapterProgress({
   const [allBooks, setAllBooks] = useState<any[]>([]);
   const [loadingBooks, setLoadingBooks] = useState(true);
 
+  // View Mode: "all" (All Chapters) vs "single" (Single Chapter)
+  const [viewMode, setViewMode] = useState<"all" | "single">("all");
+
   // Dependent Filter Selectors
   const [selectedExam, setSelectedExam] = useState<string>("NEET");
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>("");
   const [selectedBookId, setSelectedBookId] = useState<string>("");
   const [selectedChapterId, setSelectedChapterId] = useState<string>("");
 
-  // Matrix Data state
+  // Matrix Data state (supports both single chapter and all-chapters modes)
   const [matrixData, setMatrixData] = useState<any | null>(null);
   const [loadingMatrix, setLoadingMatrix] = useState(false);
 
@@ -71,6 +75,7 @@ export function TeacherChapterProgress({
     cell: any;
   } | null>(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [assignChapterId, setAssignChapterId] = useState("");
   const [assignExerciseId, setAssignExerciseId] = useState("");
   const [assignStudentIds, setAssignStudentIds] = useState<string[]>([]);
   const [assignDueDate, setAssignDueDate] = useState<string>(
@@ -86,7 +91,7 @@ export function TeacherChapterProgress({
   const [isSubmittingOverride, setIsSubmittingOverride] = useState(false);
   const [overrideFeedback, setOverrideFeedback] = useState<string | null>(null);
 
-  // Favorites / Bookmarks (Section 163)
+  // Favorites / Bookmarks
   const [favorites, setFavorites] = useState<
     Array<{
       id: string;
@@ -106,7 +111,6 @@ export function TeacherChapterProgress({
       if (saved) {
         setFavorites(JSON.parse(saved));
       } else {
-        // Preload default bookmark matching prompt requirement 163
         setFavorites([
           {
             id: "fav-1",
@@ -115,7 +119,7 @@ export function TeacherChapterProgress({
             bookId: "",
             bookName: "Narendra Avasthi",
             chapterId: "",
-            chapterName: "Some Basic Concepts of Chemistry (Mole Concept)",
+            chapterName: "Some Basic Concepts of Chemistry and Concentration Terms",
           },
         ]);
       }
@@ -141,9 +145,9 @@ export function TeacherChapterProgress({
             targetBook = books.find((b: any) => b.id === initialBookId);
           }
           if (!targetBook) {
-            // Default to NEET Narendra Avasthi if available
             targetBook =
               books.find((b: any) => b.bookCode === "NEET_CHEMISTRY_PHYSICAL_NARENDRA_AVASTHI") ||
+              books.find((b: any) => b.bookCode === "NEET_CHEMISTRY_ORGANIC_MS_CHOUHAN") ||
               books.find((b: any) => b.exam === "NEET") ||
               books[0];
           }
@@ -181,38 +185,43 @@ export function TeacherChapterProgress({
     return Array.from(examsSet);
   }, [allBooks]);
 
-  const booksForExam = useMemo(() => {
-    return allBooks.filter((b) => (b.exam || b.curriculumType) === selectedExam);
+  const availableSubjects = useMemo(() => {
+    const subjectsMap = new Map<string, { id: string; name: string }>();
+    allBooks
+      .filter((b) => (b.exam || b.curriculumType) === selectedExam)
+      .forEach((b) => {
+        if (b.subject && !subjectsMap.has(b.subject.id)) {
+          subjectsMap.set(b.subject.id, { id: b.subject.id, name: b.subject.name });
+        }
+      });
+    return Array.from(subjectsMap.values());
   }, [allBooks, selectedExam]);
 
-  const availableSubjects = useMemo(() => {
-    const map = new Map<string, any>();
-    booksForExam.forEach((b) => {
-      if (b.subject && !map.has(b.subjectId)) {
-        map.set(b.subjectId, b.subject);
-      }
-    });
-    return Array.from(map.values());
-  }, [booksForExam]);
-
   const booksForSubject = useMemo(() => {
-    return booksForExam.filter((b) => b.subjectId === selectedSubjectId);
-  }, [booksForExam, selectedSubjectId]);
+    return allBooks.filter(
+      (b) =>
+        (b.exam || b.curriculumType) === selectedExam &&
+        (!selectedSubjectId || b.subjectId === selectedSubjectId)
+    );
+  }, [allBooks, selectedExam, selectedSubjectId]);
 
   const selectedBookObj = useMemo(() => {
     return allBooks.find((b) => b.id === selectedBookId) || null;
   }, [allBooks, selectedBookId]);
 
   const availableChapters = useMemo(() => {
+    if (matrixData?.availableChapters?.length > 0) {
+      return matrixData.availableChapters;
+    }
     return selectedBookObj?.chapters || [];
-  }, [selectedBookObj]);
+  }, [selectedBookObj, matrixData]);
 
-  // Handle Exam Change
-  const handleExamChange = (exam: string) => {
-    setSelectedExam(exam);
-    const filtered = allBooks.filter((b) => (b.exam || b.curriculumType) === exam);
-    if (filtered.length > 0) {
-      const firstBook = filtered[0];
+  // Cascade resets
+  const handleExamChange = (newExam: string) => {
+    setSelectedExam(newExam);
+    const validBooks = allBooks.filter((b) => (b.exam || b.curriculumType) === newExam);
+    if (validBooks.length > 0) {
+      const firstBook = validBooks[0];
       setSelectedSubjectId(firstBook.subjectId);
       setSelectedBookId(firstBook.id);
       if (firstBook.chapters?.length > 0) {
@@ -227,15 +236,15 @@ export function TeacherChapterProgress({
     }
   };
 
-  // Handle Subject Change
-  const handleSubjectChange = (subjectId: string) => {
-    setSelectedSubjectId(subjectId);
-    const filtered = booksForExam.filter((b) => b.subjectId === subjectId);
-    if (filtered.length > 0) {
-      const firstBook = filtered[0];
-      setSelectedBookId(firstBook.id);
-      if (firstBook.chapters?.length > 0) {
-        setSelectedChapterId(firstBook.chapters[0].id);
+  const handleSubjectChange = (newSubId: string) => {
+    setSelectedSubjectId(newSubId);
+    const validBooks = allBooks.filter(
+      (b) => (b.exam || b.curriculumType) === selectedExam && b.subjectId === newSubId
+    );
+    if (validBooks.length > 0) {
+      setSelectedBookId(validBooks[0].id);
+      if (validBooks[0].chapters?.length > 0) {
+        setSelectedChapterId(validBooks[0].chapters[0].id);
       } else {
         setSelectedChapterId("");
       }
@@ -245,27 +254,31 @@ export function TeacherChapterProgress({
     }
   };
 
-  // Handle Book Change
-  const handleBookChange = (bookId: string) => {
-    setSelectedBookId(bookId);
-    const bk = allBooks.find((b) => b.id === bookId);
-    if (bk?.chapters?.length > 0) {
-      setSelectedChapterId(bk.chapters[0].id);
+  const handleBookChange = (newBookId: string) => {
+    setSelectedBookId(newBookId);
+    const book = allBooks.find((b) => b.id === newBookId);
+    if (book && book.chapters?.length > 0) {
+      setSelectedChapterId(book.chapters[0].id);
     } else {
       setSelectedChapterId("");
     }
   };
 
-  // Load Chapter Progress Matrix Data
+  // Main API data fetcher supporting both All Chapters and Single Chapter modes
   const loadMatrix = async () => {
-    if (!selectedBookId || !selectedChapterId) return;
+    if (!selectedBookId) return;
+    if (viewMode === "single" && !selectedChapterId) return;
+
     setLoadingMatrix(true);
     try {
       const params = new URLSearchParams({
         bookId: selectedBookId,
-        chapterId: selectedChapterId,
+        mode: viewMode,
         includeAllBookStudents: includeAllBookStudents ? "true" : "false",
       });
+      if (viewMode === "single" && selectedChapterId) {
+        params.set("chapterId", selectedChapterId);
+      }
       if (searchQuery) params.set("search", searchQuery);
       if (statusFilter !== "ALL") params.set("status", statusFilter);
       if (progressRange !== "ALL") params.set("progressRange", progressRange);
@@ -278,7 +291,7 @@ export function TeacherChapterProgress({
         const data = await res.json();
         setMatrixData(data);
       } else {
-        console.error("Failed to fetch chapter progress");
+        console.error("Failed to fetch chapter progress matrix");
       }
     } catch (err) {
       console.error(err);
@@ -289,12 +302,15 @@ export function TeacherChapterProgress({
 
   // Trigger matrix fetch on key selector changes or filters
   useEffect(() => {
-    if (selectedBookId && selectedChapterId) {
-      loadMatrix();
+    if (selectedBookId) {
+      if (viewMode === "all" || (viewMode === "single" && selectedChapterId)) {
+        loadMatrix();
+      }
     }
   }, [
     selectedBookId,
     selectedChapterId,
+    viewMode,
     includeAllBookStudents,
     statusFilter,
     progressRange,
@@ -306,26 +322,26 @@ export function TeacherChapterProgress({
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (selectedBookId && selectedChapterId) {
-        loadMatrix();
+      if (selectedBookId) {
+        if (viewMode === "all" || (viewMode === "single" && selectedChapterId)) {
+          loadMatrix();
+        }
       }
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Bookmark Chapter
+  // Bookmark Chapter / View
   const isCurrentBookmarked = useMemo(() => {
-    return favorites.some((f) => f.bookId === selectedBookId && f.chapterId === selectedChapterId);
-  }, [favorites, selectedBookId, selectedChapterId]);
+    return favorites.some((f) => f.bookId === selectedBookId && (viewMode === "all" || f.chapterId === selectedChapterId));
+  }, [favorites, selectedBookId, selectedChapterId, viewMode]);
 
   const toggleBookmark = () => {
-    if (!selectedBookObj || !selectedChapterId) return;
+    if (!selectedBookObj) return;
     const currentChapter = availableChapters.find((c: any) => c.id === selectedChapterId);
     let updated;
     if (isCurrentBookmarked) {
-      updated = favorites.filter(
-        (f) => !(f.bookId === selectedBookId && f.chapterId === selectedChapterId)
-      );
+      updated = favorites.filter((f) => !(f.bookId === selectedBookId));
     } else {
       updated = [
         ...favorites,
@@ -335,8 +351,8 @@ export function TeacherChapterProgress({
           subjectName: selectedBookObj.subject?.name || "Subject",
           bookId: selectedBookId,
           bookName: selectedBookObj.name,
-          chapterId: selectedChapterId,
-          chapterName: currentChapter?.name || "Chapter",
+          chapterId: selectedChapterId || "",
+          chapterName: viewMode === "all" ? "All Chapters" : (currentChapter?.name || "Chapter"),
         },
       ];
     }
@@ -355,7 +371,12 @@ export function TeacherChapterProgress({
         setSelectedExam(book.exam || book.curriculumType || "NEET");
         setSelectedSubjectId(book.subjectId);
         setSelectedBookId(book.id);
-        setSelectedChapterId(fav.chapterId);
+        if (fav.chapterId) {
+          setSelectedChapterId(fav.chapterId);
+          setViewMode("single");
+        } else {
+          setViewMode("all");
+        }
         return;
       }
     }
@@ -375,20 +396,32 @@ export function TeacherChapterProgress({
         ) || foundBook.chapters?.[0];
       if (foundChapter) {
         setSelectedChapterId(foundChapter.id);
+        setViewMode("single");
       }
     }
   };
 
-  // Quick Assign from Dashboard (Requirement 146)
-  const handleOpenAssignModal = (exerciseId?: string) => {
+  // Quick Assign from Dashboard
+  const handleOpenAssignModal = (chapterId?: string, exerciseId?: string) => {
+    const chId = chapterId || selectedChapterId || availableChapters[0]?.id || "";
+    setAssignChapterId(chId);
+
     if (exerciseId) {
       setAssignExerciseId(exerciseId);
-    } else if (matrixData?.exercises?.length > 0) {
-      setAssignExerciseId(matrixData.exercises[0].id);
+    } else {
+      const chObj = availableChapters.find((c: any) => c.id === chId);
+      if (chObj?.exercises?.length > 0) {
+        setAssignExerciseId(chObj.exercises[0].id);
+      } else if (matrixData?.exercises?.length > 0) {
+        setAssignExerciseId(matrixData.exercises[0].id);
+      }
     }
-    // Pre-select all students currently in chapter matrix
+
+    // Pre-select student IDs from matrix
     if (matrixData?.students) {
       setAssignStudentIds(matrixData.students.map((s: any) => s.studentId));
+    } else if (matrixData?.chapters?.[0]?.students) {
+      setAssignStudentIds(matrixData.chapters[0].students.map((s: any) => s.studentId));
     }
     setIsAssignModalOpen(true);
   };
@@ -407,7 +440,7 @@ export function TeacherChapterProgress({
           studentIds: assignStudentIds,
           subjectId: selectedSubjectId,
           bookId: selectedBookId,
-          chapterId: selectedChapterId,
+          chapterId: assignChapterId || selectedChapterId,
           exerciseId: assignExerciseId,
           dueDate: assignDueDate,
           instructions: assignInstructions,
@@ -429,7 +462,7 @@ export function TeacherChapterProgress({
     }
   };
 
-  // Teacher / Admin Override (Requirement 147)
+  // Teacher / Admin Override
   const handleOpenOverride = () => {
     if (!selectedExerciseDrawer?.cell?.assignmentId) return;
     setOverrideQuestions(selectedExerciseDrawer.cell.questionsCompleted);
@@ -474,15 +507,64 @@ export function TeacherChapterProgress({
     }
   };
 
-  // Export Matrix (CSV) (Requirement 160)
+  // Export Matrix (CSV)
   const handleExportCSV = () => {
-    if (!matrixData || !matrixData.students) return;
+    if (!matrixData) return;
+
+    if (matrixData.mode === "all" && matrixData.chapters) {
+      const rows: string[] = [];
+      const headers = [
+        "Chapter",
+        "Student Name",
+        "Class",
+        "Roll No",
+        "Questions Completed",
+        "Total Questions",
+        "Chapter Progress %",
+        "Status",
+        "Last Updated",
+      ];
+
+      matrixData.chapters.forEach((chData: any) => {
+        chData.students.forEach((s: any) => {
+          rows.push(
+            [
+              `"Ch ${chData.chapter.chapterNumber}: ${chData.chapter.name}"`,
+              `"${s.studentName}"`,
+              `"${s.classGrade}-${s.section}"`,
+              `"${s.rollNo}"`,
+              s.totalCompletedQuestions,
+              s.totalAssignedQuestions,
+              `${s.overallProgress}%`,
+              `"${s.primaryStatus}"`,
+              `"${s.lastUpdated ? new Date(s.lastUpdated).toLocaleDateString() : "—"}"`,
+            ].join(",")
+          );
+        });
+      });
+
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute(
+        "download",
+        `All_Chapters_Progress_${(matrixData.book?.name || "Book").replace(/[^a-zA-Z0-9]/g, "_")}.csv`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
+    if (!matrixData.students) return;
+
     const headers = [
       "Student Name",
       "Class",
       "Section",
       "Roll No",
-      ...matrixData.exercises.map((e: any) => `${e.exerciseNumber} (${e.totalQuestions} Q)`),
+      ...(matrixData.exercises || []).map((e: any) => `${e.exerciseNumber} (${e.totalQuestions} Q)`),
       "Questions Completed",
       "Total Questions",
       "Overall Progress %",
@@ -514,19 +596,17 @@ export function TeacherChapterProgress({
     link.setAttribute("href", encodedUri);
     link.setAttribute(
       "download",
-      `Chapter_Progress_${matrixData.chapter?.name.replace(/[^a-zA-Z0-9]/g, "_")}.csv`
+      `Chapter_Progress_${(matrixData.chapter?.name || "Chapter").replace(/[^a-zA-Z0-9]/g, "_")}.csv`
     );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // Printable Teacher Report (Requirement 161)
   const handlePrint = () => {
     window.print();
   };
 
-  // Dynamic sorting handler
   const handleHeaderSort = (key: string) => {
     if (sortBy === key) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
@@ -536,44 +616,433 @@ export function TeacherChapterProgress({
     }
   };
 
+  // =========================================================================
+  // SUBCOMPONENT: Individual Chapter Matrix Table
+  // =========================================================================
+  const renderChapterTable = (
+    chData: {
+      chapter: any;
+      exercises: any[];
+      students: any[];
+      stats: any;
+    },
+    isStacked: boolean = false
+  ) => {
+    const { chapter, exercises, students, stats } = chData;
+
+    return (
+      <div
+        key={chapter.id}
+        className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all"
+      >
+        {/* Chapter Header Card (especially valuable in All Chapters mode) */}
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-50 via-indigo-50/30 to-white border-b border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-3.5">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-md bg-indigo-600 text-white font-extrabold text-[10px] tracking-wide uppercase">
+                Ch. {chapter.chapterNumber}
+              </span>
+              <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+                {chapter.name}
+              </h3>
+            </div>
+            {chapter.description && (
+              <p className="text-[11px] text-slate-500 line-clamp-1">{chapter.description}</p>
+            )}
+          </div>
+
+          {/* Compact chapter status metrics pills */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <div className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-bold text-slate-700 text-[11px] shadow-2xs">
+              <span className="text-indigo-600 font-black">{exercises?.length || 0}</span> Exercises
+            </div>
+
+            <div className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-bold text-slate-700 text-[11px] shadow-2xs">
+              <span className="text-slate-900 font-black">{stats?.totalAssignedStudents || 0}</span> Students
+            </div>
+
+            <div className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-[11px] shadow-2xs">
+              <span className="font-black">{stats?.averageProgress || 0}%</span> Avg
+            </div>
+
+            <div className="px-2.5 py-1 rounded-lg bg-emerald-50/70 border border-emerald-100 text-emerald-700 font-bold text-[11px] hidden sm:inline-flex">
+              ✓ {stats?.completedStudents || 0} Done
+            </div>
+
+            <div className="px-2.5 py-1 rounded-lg bg-amber-50/70 border border-amber-100 text-amber-700 font-bold text-[11px] hidden sm:inline-flex">
+              ● {stats?.inProgressStudents || 0} In Progress
+            </div>
+
+            {(stats?.overdueStudents || 0) > 0 && (
+              <div className="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 font-black text-[11px] animate-pulse">
+                ! {stats.overdueStudents} Overdue
+              </div>
+            )}
+
+            <button
+              onClick={() => handleOpenAssignModal(chapter.id)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-bold text-[11px] hover:bg-indigo-700 shadow-2xs transition-all ml-auto md:ml-0"
+              title="Assign exercise from this chapter"
+            >
+              <Plus className="w-3 h-3" />
+              <span>Assign</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Dynamic Exercise Columns Table */}
+        {!students || students.length === 0 ? (
+          <div className="p-8 text-center space-y-2">
+            <Users className="w-8 h-8 text-slate-300 mx-auto" />
+            <div className="text-xs font-bold text-slate-700">No students found for this chapter</div>
+            <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+              {searchQuery
+                ? `No students matching "${searchQuery}" in this chapter.`
+                : "No students are currently assigned exercises in this chapter."}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto relative">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50/90 border-b border-slate-200 text-slate-600 uppercase text-[10px] font-black tracking-wider sticky top-0 z-20">
+                  {/* Sticky First Column: Student Profile */}
+                  <th
+                    className="p-3.5 sticky left-0 bg-slate-50 z-30 border-r border-slate-200 min-w-[190px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer hover:text-indigo-600"
+                    onClick={() => handleHeaderSort("name")}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span>Student Name</span>
+                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                    </div>
+                  </th>
+
+                  <th className="p-3.5 min-w-[65px] text-center border-r border-slate-200">
+                    Class
+                  </th>
+
+                  {/* Dynamically Generated Exercise Columns */}
+                  {exercises.map((ex: any, idx: number) => (
+                    <th
+                      key={ex.id}
+                      className="p-3 min-w-[125px] border-r border-slate-200 text-center cursor-pointer hover:bg-indigo-50/50 hover:text-indigo-700 transition-all"
+                      onClick={() => handleHeaderSort(`ex_${ex.id}`)}
+                      title={`Click to sort by ${ex.name}`}
+                    >
+                      <div className="font-black text-slate-800 truncate">
+                        {ex.exerciseNumber || `Ex ${idx + 1}`}
+                      </div>
+                      <div className="text-[9px] text-slate-400 font-semibold normal-case truncate max-w-[120px] mx-auto">
+                        {ex.name}
+                      </div>
+                      <div className="text-[9px] text-indigo-600 font-bold mt-0.5">
+                        {ex.totalQuestions} Qs
+                      </div>
+                    </th>
+                  ))}
+
+                  {/* Overall Column */}
+                  <th
+                    className="p-3.5 min-w-[110px] text-center border-r border-slate-200 cursor-pointer hover:text-indigo-600"
+                    onClick={() => handleHeaderSort("overall")}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      <span>Overall</span>
+                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                    </div>
+                  </th>
+
+                  {/* Status Column */}
+                  <th className="p-3.5 min-w-[100px] text-center border-r border-slate-200">
+                    Status
+                  </th>
+
+                  {/* Last Updated Column */}
+                  <th
+                    className="p-3.5 min-w-[95px] text-center cursor-pointer hover:text-indigo-600"
+                    onClick={() => handleHeaderSort("lastUpdated")}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      <span>Updated</span>
+                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {students.map((student: any) => {
+                  return (
+                    <tr
+                      key={student.studentId}
+                      className="hover:bg-indigo-50/30 transition-colors group"
+                    >
+                      {/* Sticky Student Column */}
+                      <td
+                        className="p-3 sticky left-0 bg-white group-hover:bg-indigo-50/40 z-10 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer"
+                        onClick={() => setSelectedStudentDrawer(student)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <img
+                            src={student.avatarUrl}
+                            alt={student.studentName}
+                            className="w-6 h-6 rounded-full object-cover border border-slate-200 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate text-xs flex items-center gap-1">
+                              <span>{student.studentName}</span>
+                              {student.needsAttention && (
+                                <span
+                                  className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"
+                                  title={student.attentionReasons?.join(", ")}
+                                />
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-400 truncate">
+                              Roll: {student.rollNo}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Class */}
+                      <td className="p-3 text-center text-slate-600 border-r border-slate-200 text-xs font-semibold whitespace-nowrap">
+                        {student.classGrade.replace("Class ", "")}-{student.section}
+                      </td>
+
+                      {/* Dynamic Exercise Cells */}
+                      {student.exercises.map((cell: any) => {
+                        const isNotAssigned = !cell.assigned;
+                        const isCompleted = cell.exerciseStatus === "COMPLETED";
+                        const isInProgress = cell.exerciseStatus === "IN_PROGRESS";
+                        const isNotStarted = cell.exerciseStatus === "NOT_STARTED";
+                        const isOverdue = cell.isOverdue;
+                        const isNeedsReview = cell.needsReview;
+                        const completedLate = cell.completedLate;
+
+                        let statusBadgeText = "Pending";
+                        let statusBadgeClass = "bg-slate-100 text-slate-600 border border-slate-200";
+
+                        if (isOverdue) {
+                          statusBadgeText = "Overdue";
+                          statusBadgeClass = "bg-rose-50 text-rose-700 border border-rose-200 font-bold";
+                        } else if (isNeedsReview) {
+                          statusBadgeText = "Needs Review";
+                          statusBadgeClass = "bg-sky-50 text-sky-700 border border-sky-200 font-bold";
+                        } else if (isCompleted) {
+                          statusBadgeText = completedLate ? "Completed (Late)" : "Completed";
+                          statusBadgeClass = "bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold";
+                        } else if (isInProgress) {
+                          statusBadgeText = `In Progress (${cell.percentage}%)`;
+                          statusBadgeClass = "bg-amber-50 text-amber-700 border border-amber-200 font-bold";
+                        } else if (isNotStarted) {
+                          statusBadgeText = "Pending";
+                          statusBadgeClass = "bg-slate-100 text-slate-600 border border-slate-200 font-semibold";
+                        }
+
+                        return (
+                          <td
+                            key={cell.exerciseId}
+                            className="p-2 border-r border-slate-200 text-center align-middle hover:bg-indigo-100/50 cursor-pointer transition-colors"
+                            onClick={() =>
+                              cell.assigned
+                                ? setSelectedExerciseDrawer({ student, cell })
+                                : handleOpenAssignModal(chapter.id, cell.exerciseId)
+                            }
+                            title={
+                              cell.assigned
+                                ? `Click to view ${student.studentName}'s details for ${cell.exerciseNumber}`
+                                : "Not assigned — Click to assign"
+                            }
+                          >
+                            {isNotAssigned ? (
+                              <div className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-slate-400 bg-slate-100/80 border border-slate-200/50">
+                                Not Assigned
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                <div className="flex items-center gap-1 text-xs font-black">
+                                  <span
+                                    className={
+                                      isCompleted
+                                        ? "text-emerald-700"
+                                        : isInProgress
+                                        ? "text-slate-800"
+                                        : isOverdue
+                                        ? "text-rose-700"
+                                        : "text-slate-500"
+                                    }
+                                  >
+                                    {cell.questionsCompleted}/{cell.totalQuestions}
+                                  </span>
+
+                                  {isCompleted && (
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  )}
+                                  {isInProgress && (
+                                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                                  )}
+                                  {isNeedsReview && !isCompleted && (
+                                    <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />
+                                  )}
+                                  {isNotStarted && (
+                                    <span className="text-slate-400 font-bold text-xs">—</span>
+                                  )}
+                                  {isOverdue && (
+                                    <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                  )}
+                                </div>
+
+                                <div
+                                  className={`px-1.5 py-0.5 rounded text-[9px] ${statusBadgeClass}`}
+                                >
+                                  {statusBadgeText}
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+
+                      {/* Overall Progress Column */}
+                      <td className="p-3 border-r border-slate-200 text-center">
+                        <div className="flex flex-col items-center justify-center gap-0.5">
+                          <div className="text-xs font-black text-slate-900">
+                            {student.overallProgress}%
+                          </div>
+                          <div className="w-14 bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${
+                                student.overallProgress === 100
+                                  ? "bg-emerald-500"
+                                  : student.overallProgress >= 70
+                                  ? "bg-indigo-600"
+                                  : student.overallProgress >= 40
+                                  ? "bg-amber-500"
+                                  : "bg-rose-500"
+                              }`}
+                              style={{ width: `${student.overallProgress}%` }}
+                            />
+                          </div>
+                          <div className="text-[9px] text-slate-400 font-semibold">
+                            {student.totalCompletedQuestions}/{student.totalAssignedQuestions} Qs
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Primary Status Column */}
+                      <td className="p-3 border-r border-slate-200 text-center">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            student.primaryStatus === "COMPLETED"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : student.primaryStatus === "OVERDUE"
+                              ? "bg-rose-50 text-rose-700 border border-rose-200"
+                              : student.primaryStatus === "IN_PROGRESS"
+                              ? "bg-amber-50 text-amber-700 border border-amber-200"
+                              : student.primaryStatus === "NOT_STARTED"
+                              ? "bg-slate-100 text-slate-600 border border-slate-200"
+                              : "bg-slate-50 text-slate-400 border border-slate-200"
+                          }`}
+                        >
+                          {student.primaryStatus === "COMPLETED" && (
+                            <Check className="w-3 h-3 text-emerald-600" />
+                          )}
+                          {student.primaryStatus === "OVERDUE" && (
+                            <AlertTriangle className="w-3 h-3 text-rose-600" />
+                          )}
+                          {student.primaryStatus.replace("_", " ")}
+                        </span>
+                      </td>
+
+                      {/* Last Updated */}
+                      <td className="p-3 text-center text-[10px] text-slate-500 whitespace-nowrap">
+                        {student.lastUpdated
+                          ? new Date(student.lastUpdated).toLocaleDateString()
+                          : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 print:m-0 print:p-0">
-      {/* Printable Report Header (visible only on print) */}
+      {/* Printable Report Header */}
       <div className="hidden print:block mb-6 border-b border-slate-300 pb-4">
         <div className="text-xl font-black text-slate-900">
-          {matrixData?.book?.exam || "ACADEMIC"} PROGRESS REPORT — CHAPTER MATRIX
+          {matrixData?.book?.exam || "ACADEMIC"} PROGRESS REPORT — BOOK & CHAPTER MATRIX
         </div>
         <div className="text-sm font-semibold text-slate-700 mt-1">
           {matrixData?.book?.name} • {matrixData?.book?.branch || matrixData?.book?.subject?.name}
         </div>
         <div className="text-base font-bold text-indigo-700 mt-1">
-          Chapter: {matrixData?.chapter?.name}
+          Mode: {viewMode === "all" ? "All Chapters Summary" : `Chapter: ${matrixData?.chapter?.name}`}
         </div>
         <div className="flex items-center justify-between text-xs text-slate-500 mt-2">
-          <span>Teacher: {currentUser?.name || "Mrs. Sunita Sharma"}</span>
+          <span>Teacher: {currentUser?.name || "Teacher"}</span>
           <span>Generated: {new Date().toLocaleDateString()}</span>
         </div>
       </div>
 
-      {/* SECTION 135: Dedicated Dependent Hierarchy Filter Panel */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 print:hidden">
+      {/* FILTER PANEL: Book Selector & View Mode Selector */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 print:hidden space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-2xs">
               <Layers className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-black text-slate-900 tracking-tight">
-                Teacher Chapter-Wise Tracking Dashboard
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-black text-slate-900 tracking-tight">
+                  Book-Wise Homework Tracking
+                </h2>
+                <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-black uppercase">
+                  {viewMode === "all" ? "All Chapters View" : "Single Chapter View"}
+                </span>
+              </div>
               <p className="text-xs text-slate-500">
-                Consolidated exercise matrix across all assigned students for a specific chapter
+                Track real student homework updates and exercise completion across all chapters
               </p>
             </div>
           </div>
 
-          {/* Bookmarks / Favorites Quick Switch (Section 163) */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* View Mode Toggle: All Chapters vs Single Chapter */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button
+                onClick={() => setViewMode("all")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  viewMode === "all"
+                    ? "bg-white text-indigo-700 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                title="View every chapter's student-by-exercise table stacked on one continuous scrollable page"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>All Chapters</span>
+              </button>
+              <button
+                onClick={() => setViewMode("single")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  viewMode === "single"
+                    ? "bg-white text-indigo-700 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                title="View one selected chapter's student-by-exercise table"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Single Chapter</span>
+              </button>
+            </div>
+
+            {/* Bookmark button */}
             <button
               onClick={toggleBookmark}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
@@ -581,7 +1050,7 @@ export function TeacherChapterProgress({
                   ? "bg-amber-50 text-amber-700 border-amber-300 shadow-2xs"
                   : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
               }`}
-              title="Bookmark this chapter view"
+              title="Bookmark this view"
             >
               <Star
                 className={`w-3.5 h-3.5 ${
@@ -591,6 +1060,7 @@ export function TeacherChapterProgress({
               <span>{isCurrentBookmarked ? "Bookmarked" : "Bookmark View"}</span>
             </button>
 
+            {/* Refresh */}
             <button
               onClick={loadMatrix}
               disabled={loadingMatrix}
@@ -602,9 +1072,9 @@ export function TeacherChapterProgress({
           </div>
         </div>
 
-        {/* Favorite shortcuts strip */}
+        {/* Saved views strip */}
         {favorites.length > 0 && (
-          <div className="flex items-center gap-2 pt-3 overflow-x-auto text-xs pb-1">
+          <div className="flex items-center gap-2 overflow-x-auto text-xs pb-1">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">
               Saved Views:
             </span>
@@ -616,15 +1086,15 @@ export function TeacherChapterProgress({
               >
                 <Star className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />
                 <span>
-                  {fav.exam} → {fav.bookName} → {fav.chapterName.slice(0, 24)}...
+                  {fav.bookName} → {fav.chapterName.slice(0, 24)}...
                 </span>
               </button>
             ))}
           </div>
         )}
 
-        {/* 4 Dependent Cascading Dropdowns (Section 135) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mt-4">
+        {/* Cascading Selector Controls */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1">
           {/* 1. Exam / Curriculum */}
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
@@ -668,17 +1138,20 @@ export function TeacherChapterProgress({
             </div>
           </div>
 
-          {/* 3. Book */}
+          {/* 3. Book Selector (Prominent requirement) */}
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              3. Book
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-indigo-700 mb-1.5 flex items-center justify-between">
+              <span>3. Select Book</span>
+              <span className="text-[10px] text-slate-400 font-normal">
+                {booksForSubject.length} Books
+              </span>
             </label>
             <div className="relative">
               <select
                 value={selectedBookId}
                 onChange={(e) => handleBookChange(e.target.value)}
                 disabled={booksForSubject.length === 0}
-                className="w-full appearance-none bg-slate-50/80 hover:bg-white border border-slate-200 hover:border-indigo-400 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all pr-8 disabled:opacity-50 truncate"
+                className="w-full appearance-none bg-indigo-50/30 hover:bg-white border border-indigo-200 hover:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all pr-8 disabled:opacity-50 truncate"
               >
                 {booksForSubject.map((b) => (
                   <option key={b.id} value={b.id}>
@@ -686,36 +1159,183 @@ export function TeacherChapterProgress({
                   </option>
                 ))}
               </select>
-              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+              <ChevronDown className="w-4 h-4 text-indigo-500 absolute right-3 top-3 pointer-events-none" />
             </div>
           </div>
 
-          {/* 4. Chapter */}
+          {/* 4. Chapter Selector (Enabled in Single Chapter mode, informative in All Chapters) */}
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              4. Chapter
+              4. Chapter {viewMode === "all" ? "(Showing All)" : "(Selected)"}
             </label>
             <div className="relative">
-              <select
-                value={selectedChapterId}
-                onChange={(e) => setSelectedChapterId(e.target.value)}
-                disabled={availableChapters.length === 0}
-                className="w-full appearance-none bg-slate-50/80 hover:bg-white border border-slate-200 hover:border-indigo-400 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all pr-8 disabled:opacity-50 truncate"
-              >
-                {availableChapters.map((ch: any) => (
-                  <option key={ch.id} value={ch.id}>
-                    Ch {ch.chapterNumber}: {ch.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+              {viewMode === "all" ? (
+                <div className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-600 flex items-center justify-between">
+                  <span>All {availableChapters.length} Chapters Stacked</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-200 font-extrabold text-slate-700">
+                    Continuous
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={selectedChapterId}
+                    onChange={(e) => setSelectedChapterId(e.target.value)}
+                    disabled={availableChapters.length === 0}
+                    className="w-full appearance-none bg-slate-50/80 hover:bg-white border border-slate-200 hover:border-indigo-400 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all pr-8 disabled:opacity-50 truncate"
+                  >
+                    {availableChapters.map((ch: any) => (
+                      <option key={ch.id} value={ch.id}>
+                        Ch {ch.chapterNumber}: {ch.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+                </>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* SECTION 136 & 137: Summary Header & Chapter Progress Statistics */}
-      {matrixData && (
+      {/* BOOK-LEVEL SUMMARY BANNER (Shown in All Chapters mode, or at top of book) */}
+      {matrixData && viewMode === "all" && matrixData.bookSummary && (
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-6 shadow-md border border-slate-800 print:bg-none print:text-black print:border-none print:p-0">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-300 font-bold text-[11px] border border-indigo-400/20">
+                  {matrixData.book?.exam || matrixData.book?.curriculumType}
+                </span>
+                <span className="text-slate-400 text-xs">•</span>
+                <span className="text-xs font-semibold text-slate-300">
+                  {matrixData.book?.subject?.name}
+                </span>
+                {matrixData.book?.branch && (
+                  <>
+                    <span className="text-slate-400 text-xs">•</span>
+                    <span className="text-xs font-semibold text-amber-300">
+                      {matrixData.book?.branch}
+                    </span>
+                  </>
+                )}
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
+                <span>{matrixData.book?.name}</span>
+              </h1>
+              <p className="text-xs text-slate-300 flex items-center gap-2">
+                <span>All Chapters Overview •</span>
+                {selectedBookObj?.author && (
+                  <span className="text-slate-400">By {selectedBookObj.author}</span>
+                )}
+                <span className="text-indigo-400 font-bold">
+                  ({matrixData.bookSummary.totalChapters} Chapters • {matrixData.bookSummary.totalExercises} Exercises)
+                </span>
+              </p>
+            </div>
+
+            {/* Overall Book Progress Gauge */}
+            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 min-w-[280px]">
+              <div className="flex items-center justify-between text-xs font-bold mb-2">
+                <span className="text-slate-300">Overall Book Completion</span>
+                <span className="text-emerald-400 text-sm font-black">
+                  {matrixData.bookSummary.overallProgress}%
+                </span>
+              </div>
+              <div className="w-full bg-slate-800/80 rounded-full h-3 overflow-hidden border border-white/10">
+                <div
+                  className="h-full bg-gradient-to-r from-indigo-500 via-emerald-400 to-emerald-500 rounded-full transition-all duration-500"
+                  style={{ width: `${matrixData.bookSummary.overallProgress || 0}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2 font-medium">
+                <span>
+                  {matrixData.bookSummary.completedTasks} of {matrixData.bookSummary.totalAssignedTasks} tasks finished
+                </span>
+                <span>{matrixData.bookSummary.totalQuestions?.toLocaleString()} Questions</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Book KPI Stat Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mt-6 pt-5 border-t border-white/10 print:text-black">
+            <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Chapters
+              </div>
+              <div className="text-xl font-black text-white mt-1">
+                {matrixData.bookSummary.totalChapters}
+              </div>
+            </div>
+
+            <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Exercises
+              </div>
+              <div className="text-xl font-black text-indigo-400 mt-1">
+                {matrixData.bookSummary.totalExercises}
+              </div>
+            </div>
+
+            <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Questions
+              </div>
+              <div className="text-xl font-black text-white mt-1">
+                {matrixData.bookSummary.totalQuestions?.toLocaleString()}
+              </div>
+            </div>
+
+            <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Students
+              </div>
+              <div className="text-xl font-black text-white mt-1">
+                {matrixData.bookSummary.studentCount}
+              </div>
+            </div>
+
+            <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                ✓ Completed
+              </div>
+              <div className="text-xl font-black text-emerald-400 mt-1">
+                {matrixData.bookSummary.completedTasks}
+              </div>
+            </div>
+
+            <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                ● In Progress
+              </div>
+              <div className="text-xl font-black text-amber-400 mt-1">
+                {matrixData.bookSummary.inProgressTasks}
+              </div>
+            </div>
+
+            <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                — Pending
+              </div>
+              <div className="text-xl font-black text-slate-400 mt-1">
+                {matrixData.bookSummary.pendingTasks}
+              </div>
+            </div>
+
+            <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                ! Overdue
+              </div>
+              <div className="text-xl font-black text-rose-400 mt-1">
+                {matrixData.bookSummary.overdueTasks}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SINGLE CHAPTER SUMMARY HEADER (When in Single Chapter Mode) */}
+      {matrixData && viewMode === "single" && matrixData.chapter && (
         <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-6 shadow-md border border-slate-800 print:bg-none print:text-black print:border-none print:p-0">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="space-y-2">
@@ -737,7 +1357,7 @@ export function TeacherChapterProgress({
                 )}
               </div>
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-                {matrixData.chapter?.name}
+                Ch {matrixData.chapter?.chapterNumber}: {matrixData.chapter?.name}
               </h1>
               <p className="text-xs text-slate-300 flex items-center gap-2">
                 <span>Book:</span>
@@ -748,7 +1368,7 @@ export function TeacherChapterProgress({
               </p>
             </div>
 
-            {/* Overall Chapter Progress Gauge (Section 137) */}
+            {/* Average Student Progress */}
             <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 min-w-[280px]">
               <div className="flex items-center justify-between text-xs font-bold mb-2">
                 <span className="text-slate-300">Average Student Progress</span>
@@ -772,7 +1392,6 @@ export function TeacherChapterProgress({
             </div>
           </div>
 
-          {/* KPI Stat Cards (Section 136 & 153) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-6 pt-5 border-t border-white/10 print:text-black">
             <div className="bg-white/5 rounded-xl p-3 border border-white/5">
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
@@ -831,8 +1450,8 @@ export function TeacherChapterProgress({
         </div>
       )}
 
-      {/* SECTION 152: Exercise Performance Breakdown Strip */}
-      {matrixData && matrixData.stats?.exercisePerformance?.length > 0 && (
+      {/* SINGLE CHAPTER: Exercise Performance Breakdown Strip */}
+      {viewMode === "single" && matrixData?.stats?.exercisePerformance?.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 print:hidden">
           <div className="flex items-center justify-between mb-3.5">
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
@@ -840,7 +1459,7 @@ export function TeacherChapterProgress({
               <span>Chapter Summary By Exercise</span>
             </h3>
             <button
-              onClick={() => handleOpenAssignModal()}
+              onClick={() => handleOpenAssignModal(selectedChapterId)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 shadow-2xs transition-all"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -848,12 +1467,12 @@ export function TeacherChapterProgress({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {matrixData.stats.exercisePerformance.map((perf: any) => (
               <div
                 key={perf.exerciseId}
                 className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-indigo-300 transition-all cursor-pointer"
-                onClick={() => handleOpenAssignModal(perf.exerciseId)}
+                onClick={() => handleOpenAssignModal(selectedChapterId, perf.exerciseId)}
                 title="Click to assign this exercise"
               >
                 <div className="flex items-center justify-between text-xs font-bold text-slate-800">
@@ -885,15 +1504,19 @@ export function TeacherChapterProgress({
         </div>
       )}
 
-      {/* SECTION 148 & 150: Matrix Controls Toolbar */}
+      {/* SEARCH AND FILTERS TOOLBAR */}
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 print:hidden">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3.5">
-          {/* Search student */}
-          <div className="relative flex-1 min-w-[200px]">
+          {/* Student Search: Across all chapter tables in All Chapters mode */}
+          <div className="relative flex-1 min-w-[220px]">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
             <input
               type="text"
-              placeholder="Search student by name, roll no, or email..."
+              placeholder={
+                viewMode === "all"
+                  ? "Search students across all chapters..."
+                  : "Search student by name, roll no, or email..."
+              }
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -909,7 +1532,7 @@ export function TeacherChapterProgress({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Needs Attention Quick Filter (Section 150) */}
+            {/* Needs Attention Filter */}
             <button
               onClick={() => setNeedsAttentionOnly(!needsAttentionOnly)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
@@ -922,11 +1545,6 @@ export function TeacherChapterProgress({
                 className={`w-3.5 h-3.5 ${needsAttentionOnly ? "text-rose-600" : "text-amber-500"}`}
               />
               <span>Needs Attention</span>
-              {matrixData?.stats?.needsAttentionStudents > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px]">
-                  {matrixData.stats.needsAttentionStudents}
-                </span>
-              )}
             </button>
 
             {/* Status Filter */}
@@ -938,8 +1556,10 @@ export function TeacherChapterProgress({
               <option value="ALL">Status: All</option>
               <option value="COMPLETED">Completed (✓)</option>
               <option value="IN_PROGRESS">In Progress (●)</option>
-              <option value="NOT_STARTED">Not Started (—)</option>
+              <option value="NOT_STARTED">Pending (—)</option>
               <option value="OVERDUE">Overdue (!)</option>
+              <option value="NEEDS_REVIEW">Needs Review</option>
+              <option value="NOT_ASSIGNED">Not Assigned</option>
             </select>
 
             {/* Progress Range Filter */}
@@ -957,7 +1577,7 @@ export function TeacherChapterProgress({
               <option value="100">100% Completed</option>
             </select>
 
-            {/* Show All Book Students Toggle (Section 145) */}
+            {/* All Book Students Checkbox */}
             <label className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-100">
               <input
                 type="checkbox"
@@ -965,10 +1585,10 @@ export function TeacherChapterProgress({
                 onChange={(e) => setIncludeAllBookStudents(e.target.checked)}
                 className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
               />
-              <span>All Book Students</span>
+              <span className="whitespace-nowrap">All Book Students</span>
             </label>
 
-            {/* Export and Print (Section 160 & 161) */}
+            {/* CSV Export & Print */}
             <button
               onClick={handleExportCSV}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-2xs"
@@ -981,7 +1601,7 @@ export function TeacherChapterProgress({
             <button
               onClick={handlePrint}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all shadow-2xs"
-              title="Print teacher report"
+              title="Print Report"
             >
               <Printer className="w-3.5 h-3.5 text-slate-500" />
               <span>Print</span>
@@ -990,285 +1610,51 @@ export function TeacherChapterProgress({
         </div>
       </div>
 
-      {/* SECTION 138, 139, 140: THE PRIMARY SPREADSHEET MATRIX TABLE */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
-        {loadingMatrix ? (
-          <div className="p-12 text-center space-y-3">
-            <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-xs font-semibold text-slate-500">
-              Loading consolidated chapter matrix...
-            </p>
-          </div>
-        ) : !matrixData || matrixData.students.length === 0 ? (
-          <div className="p-12 text-center space-y-3">
-            <Users className="w-10 h-10 text-slate-300 mx-auto" />
-            <div className="text-sm font-bold text-slate-700">No student records found</div>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto">
-              No students are currently assigned to exercises under this chapter. Click "Assign
-              Exercise" above to assign work to students, or enable "All Book Students".
-            </p>
-            <button
-              onClick={() => handleOpenAssignModal()}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Assign First Exercise</span>
-            </button>
-          </div>
-        ) : (
-          <div className="overflow-x-auto relative">
-            <table className="w-full text-left border-collapse text-xs">
-              {/* Sticky Header Row */}
-              <thead>
-                <tr className="bg-slate-50/90 border-b border-slate-200 text-slate-600 uppercase text-[10px] font-black tracking-wider sticky top-0 z-20">
-                  {/* Sticky First Column: Student Profile (Section 156) */}
-                  <th
-                    className="p-3.5 sticky left-0 bg-slate-50 z-30 border-r border-slate-200 min-w-[200px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer hover:text-indigo-600"
-                    onClick={() => handleHeaderSort("name")}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span>Student</span>
-                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
+      {/* LOADING STATE */}
+      {loadingMatrix && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
+          <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs font-semibold text-slate-500">
+            {viewMode === "all"
+              ? "Loading all chapters and student exercise matrix..."
+              : "Loading chapter progress matrix..."}
+          </p>
+        </div>
+      )}
 
-                  <th className="p-3.5 min-w-[70px] text-center border-r border-slate-200">
-                    Class
-                  </th>
+      {/* MATRIX DISPLAY: ALL CHAPTERS VS SINGLE CHAPTER */}
+      {!loadingMatrix && matrixData && (
+        <>
+          {viewMode === "all" && matrixData.chapters ? (
+            <div className="space-y-6">
+              {matrixData.chapters.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
+                  <BookOpen className="w-10 h-10 text-slate-300 mx-auto" />
+                  <div className="text-sm font-bold text-slate-700">No chapters found</div>
+                  <p className="text-xs text-slate-400">
+                    This book does not have any chapters configured yet.
+                  </p>
+                </div>
+              ) : (
+                matrixData.chapters.map((chMatrix: any) =>
+                  renderChapterTable(chMatrix, true)
+                )
+              )}
+            </div>
+          ) : viewMode === "single" && matrixData.chapter ? (
+            <div>
+              {renderChapterTable({
+                chapter: matrixData.chapter,
+                exercises: matrixData.exercises || [],
+                students: matrixData.students || [],
+                stats: matrixData.stats || {},
+              })}
+            </div>
+          ) : null}
+        </>
+      )}
 
-                  {/* Dynamic Exercise Columns (Section 143) */}
-                  {matrixData.exercises.map((ex: any, idx: number) => (
-                    <th
-                      key={ex.id}
-                      className="p-3.5 min-w-[130px] border-r border-slate-200 text-center cursor-pointer hover:bg-indigo-50/50 hover:text-indigo-700 transition-all"
-                      onClick={() => handleHeaderSort(`ex_${ex.id}`)}
-                      title={`Click to sort by ${ex.name}`}
-                    >
-                      <div className="font-black text-slate-800">
-                        {ex.exerciseNumber || `Ex ${idx + 1}`}
-                      </div>
-                      <div className="text-[9px] text-slate-400 font-semibold normal-case truncate max-w-[120px] mx-auto">
-                        {ex.totalQuestions} Questions
-                      </div>
-                    </th>
-                  ))}
-
-                  {/* Question-Weighted Overall Column (Section 151) */}
-                  <th
-                    className="p-3.5 min-w-[120px] text-center border-r border-slate-200 cursor-pointer hover:text-indigo-600"
-                    onClick={() => handleHeaderSort("overall")}
-                  >
-                    <div className="flex items-center justify-center gap-1">
-                      <span>Overall</span>
-                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
-
-                  {/* Primary Status Column */}
-                  <th className="p-3.5 min-w-[110px] text-center border-r border-slate-200">
-                    Status
-                  </th>
-
-                  {/* Last Updated Column */}
-                  <th
-                    className="p-3.5 min-w-[110px] text-center cursor-pointer hover:text-indigo-600"
-                    onClick={() => handleHeaderSort("lastUpdated")}
-                  >
-                    <div className="flex items-center justify-center gap-1">
-                      <span>Updated</span>
-                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
-                </tr>
-              </thead>
-
-              {/* Table Body */}
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {matrixData.students.map((student: any) => {
-                  return (
-                    <tr
-                      key={student.studentId}
-                      className="hover:bg-indigo-50/30 transition-colors group"
-                    >
-                      {/* Sticky Student Column (Section 141) */}
-                      <td
-                        className="p-3.5 sticky left-0 bg-white group-hover:bg-indigo-50/40 z-10 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer"
-                        onClick={() => setSelectedStudentDrawer(student)}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <img
-                            src={student.avatarUrl}
-                            alt={student.studentName}
-                            className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
-                          />
-                          <div className="min-w-0">
-                            <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate text-xs flex items-center gap-1.5">
-                              <span>{student.studentName}</span>
-                              {student.needsAttention && (
-                                <span
-                                  className="w-2 h-2 rounded-full bg-rose-500 shrink-0"
-                                  title={student.attentionReasons?.join(", ")}
-                                />
-                              )}
-                            </div>
-                            <div className="text-[10px] text-slate-400 truncate">
-                              Roll: {student.rollNo} • {student.email}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Class & Section */}
-                      <td className="p-3.5 text-center text-slate-600 border-r border-slate-200 text-xs font-semibold">
-                        {student.classGrade.replace("Class ", "")}-{student.section}
-                      </td>
-
-                      {/* Dynamic Exercise Cells (Section 139 & 140) */}
-                      {student.exercises.map((cell: any) => {
-                        const isNotAssigned = !cell.assigned;
-                        const isCompleted = cell.exerciseStatus === "COMPLETED";
-                        const isInProgress = cell.exerciseStatus === "IN_PROGRESS";
-                        const isNotStarted = cell.exerciseStatus === "NOT_STARTED";
-                        const isOverdue = cell.isOverdue;
-
-                        return (
-                          <td
-                            key={cell.exerciseId}
-                            className="p-2.5 border-r border-slate-200 text-center align-middle hover:bg-indigo-100/50 cursor-pointer transition-colors"
-                            onClick={() =>
-                              cell.assigned
-                                ? setSelectedExerciseDrawer({ student, cell })
-                                : handleOpenAssignModal(cell.exerciseId)
-                            }
-                            title={
-                              cell.assigned
-                                ? "Click to view exercise details or override progress"
-                                : "Not assigned — Click to assign"
-                            }
-                          >
-                            {isNotAssigned ? (
-                              <div className="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-semibold text-slate-400 bg-slate-100/80">
-                                Not Assigned
-                              </div>
-                            ) : (
-                              <div className="flex flex-col items-center justify-center gap-0.5">
-                                {/* Questions fraction + status icon */}
-                                <div className="flex items-center gap-1 text-xs font-black">
-                                  <span
-                                    className={
-                                      isCompleted
-                                        ? "text-emerald-700"
-                                        : isInProgress
-                                        ? "text-slate-800"
-                                        : isOverdue
-                                        ? "text-rose-700"
-                                        : "text-slate-500"
-                                    }
-                                  >
-                                    {cell.questionsCompleted}/{cell.totalQuestions}
-                                  </span>
-
-                                  {isCompleted && (
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                  )}
-                                  {isInProgress && (
-                                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                                  )}
-                                  {isNotStarted && (
-                                    <span className="text-slate-400 font-bold text-xs">—</span>
-                                  )}
-                                  {isOverdue && (
-                                    <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
-                                  )}
-                                </div>
-
-                                {/* Percentage Badge */}
-                                <div
-                                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
-                                    isCompleted
-                                      ? "bg-emerald-100 text-emerald-800"
-                                      : isInProgress
-                                      ? "bg-amber-100 text-amber-800"
-                                      : isOverdue
-                                      ? "bg-rose-100 text-rose-800 font-extrabold"
-                                      : "bg-slate-100 text-slate-500"
-                                  }`}
-                                >
-                                  {isOverdue ? "OVERDUE" : `${cell.percentage}%`}
-                                </div>
-                              </div>
-                            )}
-                          </td>
-                        );
-                      })}
-
-                      {/* Overall Progress Column (Section 151) */}
-                      <td className="p-3.5 border-r border-slate-200 text-center">
-                        <div className="flex flex-col items-center justify-center gap-1">
-                          <div className="text-xs font-black text-slate-900">
-                            {student.overallProgress}%
-                          </div>
-                          <div className="w-16 bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${
-                                student.overallProgress === 100
-                                  ? "bg-emerald-500"
-                                  : student.overallProgress >= 70
-                                  ? "bg-indigo-600"
-                                  : student.overallProgress >= 40
-                                  ? "bg-amber-500"
-                                  : "bg-rose-500"
-                              }`}
-                              style={{ width: `${student.overallProgress}%` }}
-                            />
-                          </div>
-                          <div className="text-[9px] text-slate-400 font-semibold">
-                            {student.totalCompletedQuestions}/{student.totalAssignedQuestions} Qs
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Primary Status Column (Section 140) */}
-                      <td className="p-3.5 border-r border-slate-200 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                            student.primaryStatus === "COMPLETED"
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : student.primaryStatus === "OVERDUE"
-                              ? "bg-rose-50 text-rose-700 border border-rose-200"
-                              : student.primaryStatus === "IN_PROGRESS"
-                              ? "bg-amber-50 text-amber-700 border border-amber-200"
-                              : student.primaryStatus === "NOT_STARTED"
-                              ? "bg-slate-100 text-slate-600 border border-slate-200"
-                              : "bg-slate-50 text-slate-400 border border-slate-200"
-                          }`}
-                        >
-                          {student.primaryStatus === "COMPLETED" && (
-                            <Check className="w-3 h-3 text-emerald-600" />
-                          )}
-                          {student.primaryStatus === "OVERDUE" && (
-                            <AlertTriangle className="w-3 h-3 text-rose-600" />
-                          )}
-                          {student.primaryStatus.replace("_", " ")}
-                        </span>
-                      </td>
-
-                      {/* Last Updated */}
-                      <td className="p-3.5 text-center text-[10px] text-slate-500">
-                        {student.lastUpdated
-                          ? new Date(student.lastUpdated).toLocaleDateString()
-                          : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* SECTION 141: STUDENT DETAIL DRAWER (Clicking a Student Row) */}
+      {/* STUDENT DETAIL DRAWER */}
       {selectedStudentDrawer && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex justify-end transition-opacity">
           <div className="bg-white w-full max-w-xl h-full shadow-2xl overflow-y-auto flex flex-col p-6 space-y-6">
@@ -1297,16 +1683,11 @@ export function TeacherChapterProgress({
               </button>
             </div>
 
-            {/* Context breadcrumb */}
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-              <span className="font-bold text-slate-700">Chapter:</span>{" "}
-              <span className="text-indigo-700 font-bold">{matrixData.chapter?.name}</span>
-              <div className="text-[11px] text-slate-500 mt-0.5">
-                Book: {matrixData.book?.name} ({matrixData.book?.exam || matrixData.book?.curriculumType})
-              </div>
+              <span className="font-bold text-slate-700">Book:</span>{" "}
+              <span className="text-indigo-700 font-bold">{matrixData?.book?.name}</span>
             </div>
 
-            {/* Student Progress Summary */}
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-100">
                 <div className="text-[10px] font-bold uppercase text-indigo-500">
@@ -1331,7 +1712,6 @@ export function TeacherChapterProgress({
               </div>
             </div>
 
-            {/* Attention notices if any */}
             {selectedStudentDrawer.needsAttention && (
               <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5">
                 <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
@@ -1346,10 +1726,9 @@ export function TeacherChapterProgress({
               </div>
             )}
 
-            {/* Exercise Breakdown List */}
             <div className="space-y-3">
               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                Exercises Under This Chapter
+                Assigned Exercises
               </h4>
               <div className="space-y-2">
                 {selectedStudentDrawer.exercises.map((cell: any) => (
@@ -1398,11 +1777,12 @@ export function TeacherChapterProgress({
                           <span>Due: {cell.dueDate ? new Date(cell.dueDate).toLocaleDateString() : "—"}</span>
                           <button
                             onClick={() => {
+                              setSelectedStudentDrawer(null);
                               setSelectedExerciseDrawer({ student: selectedStudentDrawer, cell });
                             }}
-                            className="text-indigo-600 hover:underline font-bold"
+                            className="text-indigo-600 hover:text-indigo-800 font-bold"
                           >
-                            Inspect & Override →
+                            Details & History →
                           </button>
                         </div>
                       </div>
@@ -1411,20 +1791,11 @@ export function TeacherChapterProgress({
                 ))}
               </div>
             </div>
-
-            <div className="pt-4 border-t border-slate-200">
-              <button
-                onClick={() => setSelectedStudentDrawer(null)}
-                className="w-full py-2.5 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 transition-all"
-              >
-                Close Drawer
-              </button>
-            </div>
           </div>
         </div>
       )}
 
-      {/* SECTION 142: EXERCISE CELL DETAIL & OVERRIDE DRAWER */}
+      {/* EXERCISE DETAIL DRAWER */}
       {selectedExerciseDrawer && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex justify-end transition-opacity">
           <div className="bg-white w-full max-w-lg h-full shadow-2xl overflow-y-auto flex flex-col p-6 space-y-6">
@@ -1433,15 +1804,9 @@ export function TeacherChapterProgress({
                 <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">
                   Exercise Details
                 </span>
-                <h3 className="text-base font-black text-slate-900 mt-0.5">
-                  {selectedExerciseDrawer.cell.exerciseName}
+                <h3 className="text-base font-black text-slate-900">
+                  {selectedExerciseDrawer.cell.exerciseNumber} — {selectedExerciseDrawer.cell.exerciseName}
                 </h3>
-                <p className="text-xs text-slate-500">
-                  Student:{" "}
-                  <span className="font-bold text-slate-700">
-                    {selectedExerciseDrawer.student.studentName}
-                  </span>
-                </p>
               </div>
               <button
                 onClick={() => setSelectedExerciseDrawer(null)}
@@ -1451,350 +1816,285 @@ export function TeacherChapterProgress({
               </button>
             </div>
 
-            {/* Questions KPI Box */}
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="text-[10px] font-bold text-slate-400 uppercase">Total Questions</div>
-                <div className="text-2xl font-black text-slate-800 mt-1">
-                  {selectedExerciseDrawer.cell.totalQuestions}
-                </div>
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+              <div className="text-xs font-bold text-slate-800">
+                Student: {selectedExerciseDrawer.student.studentName}
               </div>
-
-              <div className="p-3.5 bg-indigo-50 rounded-xl border border-indigo-100">
-                <div className="text-[10px] font-bold text-indigo-500 uppercase">Completed</div>
-                <div className="text-2xl font-black text-indigo-700 mt-1">
-                  {selectedExerciseDrawer.cell.questionsCompleted}
-                </div>
-              </div>
-
-              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="text-[10px] font-bold text-slate-400 uppercase">Remaining</div>
-                <div className="text-2xl font-black text-slate-800 mt-1">
-                  {Math.max(
-                    0,
-                    selectedExerciseDrawer.cell.totalQuestions -
-                      selectedExerciseDrawer.cell.questionsCompleted
-                  )}
-                </div>
+              <div className="text-[11px] text-slate-500">
+                Book: {matrixData?.book?.name}
               </div>
             </div>
 
-            {/* Progress Bar & Status */}
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold">
-                <span className="text-slate-600">Calculated Progress</span>
-                <span className="text-indigo-600 font-black text-sm">
-                  {selectedExerciseDrawer.cell.percentage}%
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <div className="text-[10px] font-bold uppercase text-slate-400">Questions Solved</div>
+                  <div className="text-xl font-black text-slate-900 mt-1">
+                    {selectedExerciseDrawer.cell.questionsCompleted} /{" "}
+                    {selectedExerciseDrawer.cell.totalQuestions}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <div className="text-[10px] font-bold uppercase text-slate-400">Status</div>
+                  <div className="text-xs font-black uppercase mt-2">
+                    {selectedExerciseDrawer.cell.isOverdue
+                      ? "OVERDUE"
+                      : selectedExerciseDrawer.cell.exerciseStatus.replace("_", " ")}
+                  </div>
+                </div>
+              </div>
+
+              {selectedExerciseDrawer.cell.instructions && (
+                <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl text-xs text-indigo-900">
+                  <div className="font-bold text-[11px] text-indigo-700">Teacher Instructions:</div>
+                  <p className="mt-0.5">{selectedExerciseDrawer.cell.instructions}</p>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between text-xs text-slate-500 border-t border-b border-slate-100 py-3">
+                <span>Due Date:</span>
+                <span className="font-bold text-slate-800">
+                  {selectedExerciseDrawer.cell.dueDate
+                    ? new Date(selectedExerciseDrawer.cell.dueDate).toLocaleDateString()
+                    : "—"}
                 </span>
               </div>
-              <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
-                <div
-                  className="h-full bg-indigo-600 rounded-full"
-                  style={{ width: `${selectedExerciseDrawer.cell.percentage}%` }}
-                />
-              </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-2 text-[11px] text-slate-500">
-                <div>
-                  <span className="font-semibold text-slate-400">Due Date: </span>
-                  <span className="font-bold text-slate-700">
-                    {selectedExerciseDrawer.cell.dueDate
-                      ? new Date(selectedExerciseDrawer.cell.dueDate).toLocaleDateString()
-                      : "—"}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-semibold text-slate-400">Last Update: </span>
-                  <span className="font-bold text-slate-700">
-                    {selectedExerciseDrawer.cell.lastUpdated
-                      ? new Date(selectedExerciseDrawer.cell.lastUpdated).toLocaleDateString()
-                      : "—"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Progress History Timeline */}
-            <div>
-              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2.5">
-                Progress Attempt History
-              </h4>
-              {selectedExerciseDrawer.cell.history?.length > 0 ? (
-                <div className="space-y-2 border-l-2 border-indigo-200 pl-3">
-                  {selectedExerciseDrawer.cell.history.map((h: any) => (
-                    <div key={h.id} className="text-xs text-slate-600">
-                      <div className="flex items-center justify-between font-bold text-slate-800">
-                        <span>
-                          {h.questionsCompleted} / {h.totalQuestions} questions ({h.percentage}%)
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-normal">
-                          {new Date(h.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      {h.notes && (
-                        <p className="text-[11px] text-slate-500 italic mt-0.5">{h.notes}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-400 italic">No historical updates recorded yet.</p>
-              )}
-            </div>
-
-            {/* Administrative Override Action Button (Section 147) */}
-            <div className="pt-4 border-t border-slate-200">
               <button
                 onClick={handleOpenOverride}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition-all shadow-xs"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 shadow-xs transition-all"
               >
-                <ShieldAlert className="w-4 h-4" />
-                <span>Administrative Teacher Override</span>
+                <ShieldAlert className="w-4 h-4 text-amber-400" />
+                <span>Teacher Override Question Count</span>
               </button>
-              <p className="text-[10px] text-slate-400 text-center mt-1.5">
-                Note: Modifications are strictly tracked in system audit logs with teacher attribution.
-              </p>
+
+              <div className="space-y-3 pt-2">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-indigo-600" />
+                  <span>Update History</span>
+                </h4>
+                {selectedExerciseDrawer.cell.history?.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-4 bg-slate-50 rounded-xl">
+                    No incremental updates logged yet.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {selectedExerciseDrawer.cell.history?.map((h: any) => (
+                      <div
+                        key={h.id}
+                        className="p-3 rounded-xl border border-slate-200 text-xs flex items-center justify-between"
+                      >
+                        <div>
+                          <div className="font-bold text-slate-800">
+                            +{h.deltaQuestions} Qs ({h.questionsCompleted}/{h.totalQuestions})
+                          </div>
+                          {h.notes && (
+                            <p className="text-[11px] text-slate-500 mt-0.5">{h.notes}</p>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-semibold">
+                          {h.createdAt ? new Date(h.createdAt).toLocaleDateString() : ""}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* SECTION 147: TEACHER / ADMIN OVERRIDE MODAL */}
+      {/* TEACHER OVERRIDE MODAL */}
       {isOverrideModalOpen && selectedExerciseDrawer && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2 text-amber-700">
-                <ShieldAlert className="w-5 h-5 text-amber-600" />
-                <h3 className="text-sm font-black uppercase tracking-wider">
-                  Teacher Progress Override
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-indigo-700">
+                <ShieldAlert className="w-5 h-5 text-indigo-600" />
+                <h3 className="text-sm font-black text-slate-900">
+                  Teacher Verified Override
                 </h3>
               </div>
               <button
                 onClick={() => setIsOverrideModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="text-xs text-slate-600 bg-amber-50 p-3 rounded-xl border border-amber-200 space-y-1">
-              <div className="font-bold text-amber-900">
-                Student: {selectedExerciseDrawer.student.studentName}
-              </div>
-              <div className="text-[11px] text-amber-800">
-                Exercise: {selectedExerciseDrawer.cell.exerciseName}
-              </div>
-              <div className="text-[11px] text-slate-500">
-                Current in DB: {selectedExerciseDrawer.cell.questionsCompleted} /{" "}
-                {selectedExerciseDrawer.cell.totalQuestions} questions (
-                {selectedExerciseDrawer.cell.percentage}%)
-              </div>
-            </div>
+            <p className="text-xs text-slate-500">
+              Directly adjust the completed question count for{" "}
+              <strong className="text-slate-800">
+                {selectedExerciseDrawer.student.studentName}
+              </strong>{" "}
+              on {selectedExerciseDrawer.cell.exerciseNumber}.
+            </p>
 
-            {/* Slider & Stepper */}
-            <div>
-              <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-1">
-                <span>New Questions Completed:</span>
-                <span className="text-base font-black text-indigo-600">
-                  {overrideQuestions} / {selectedExerciseDrawer.cell.totalQuestions} (
-                  {Math.round(
-                    (overrideQuestions / selectedExerciseDrawer.cell.totalQuestions) * 100
-                  )}
-                  %)
-                </span>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Verified Questions Completed (Max: {selectedExerciseDrawer.cell.totalQuestions}):
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max={selectedExerciseDrawer.cell.totalQuestions}
+                  value={overrideQuestions}
+                  onChange={(e) => setOverrideQuestions(Number(e.target.value))}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
-              <input
-                type="range"
-                min={0}
-                max={selectedExerciseDrawer.cell.totalQuestions}
-                value={overrideQuestions}
-                onChange={(e) => setOverrideQuestions(Number(e.target.value))}
-                className="w-full accent-indigo-600 cursor-pointer"
-              />
-            </div>
 
-            {/* Mandatory Reason Input */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Override Reason (Mandatory for Audit Logs):
-              </label>
-              <textarea
-                rows={2}
-                value={overrideReason}
-                onChange={(e) => setOverrideReason(e.target.value)}
-                placeholder="e.g., Verified from physical notebook during class session..."
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
-              />
-            </div>
-
-            {overrideFeedback && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2">
-                <Check className="w-4 h-4 text-emerald-600" />
-                <span>{overrideFeedback}</span>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Mandatory Audit Reason:
+                </label>
+                <textarea
+                  rows={2}
+                  value={overrideReason}
+                  onChange={(e) => setOverrideReason(e.target.value)}
+                  placeholder="e.g. Verified physically during classroom session..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
-            )}
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setIsOverrideModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleExecuteOverride}
-                disabled={isSubmittingOverride}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-xs flex items-center gap-1.5 disabled:opacity-50"
-              >
-                {isSubmittingOverride ? (
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Check className="w-3.5 h-3.5" />
-                )}
-                <span>Confirm Override</span>
-              </button>
+              {overrideFeedback && (
+                <div className="p-3 bg-emerald-50 text-emerald-800 text-xs rounded-xl font-bold">
+                  ✓ {overrideFeedback}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsOverrideModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteOverride}
+                  disabled={isSubmittingOverride}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-xs disabled:opacity-50"
+                >
+                  {isSubmittingOverride ? "Saving..." : "Apply Override"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* SECTION 146: QUICK ASSIGN EXERCISE MODAL */}
+      {/* QUICK ASSIGN MODAL */}
       {isAssignModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <Plus className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">
-                  Quick Assign Exercise
+                <h3 className="text-sm font-black text-slate-900">
+                  Assign Exercise to Students
                 </h3>
               </div>
               <button
                 onClick={() => setIsAssignModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Select Exercise
-              </label>
-              <select
-                value={assignExerciseId}
-                onChange={(e) => setAssignExerciseId(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                {matrixData?.exercises?.map((ex: any) => (
-                  <option key={ex.id} value={ex.id}>
-                    {ex.exerciseNumber} — {ex.name} ({ex.totalQuestions} questions)
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-bold text-slate-700">
-                  Select Students ({assignStudentIds.length} chosen)
+            <div className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  1. Choose Chapter & Exercise:
                 </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (assignStudentIds.length === matrixData?.students?.length) {
-                      setAssignStudentIds([]);
-                    } else {
-                      setAssignStudentIds(matrixData?.students?.map((s: any) => s.studentId) || []);
-                    }
-                  }}
-                  className="text-[11px] font-bold text-indigo-600 hover:underline"
-                >
-                  {assignStudentIds.length === matrixData?.students?.length
-                    ? "Deselect All"
-                    : "Select All"}
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={assignChapterId}
+                    onChange={(e) => {
+                      setAssignChapterId(e.target.value);
+                      const ch = availableChapters.find((c: any) => c.id === e.target.value);
+                      if (ch?.exercises?.length > 0) {
+                        setAssignExerciseId(ch.exercises[0].id);
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 truncate"
+                  >
+                    {availableChapters.map((c: any) => (
+                      <option key={c.id} value={c.id}>
+                        Ch {c.chapterNumber}: {c.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={assignExerciseId}
+                    onChange={(e) => setAssignExerciseId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 truncate"
+                  >
+                    {(
+                      availableChapters.find((c: any) => c.id === assignChapterId)?.exercises ||
+                      matrixData?.exercises ||
+                      []
+                    ).map((ex: any) => (
+                      <option key={ex.id} value={ex.id}>
+                        {ex.exerciseNumber || ex.name} ({ex.totalQuestions} Qs)
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              <div className="max-h-40 overflow-y-auto space-y-1.5 p-2 bg-slate-50 border border-slate-200 rounded-xl">
-                {matrixData?.students?.map((stu: any) => {
-                  const isChecked = assignStudentIds.includes(stu.studentId);
-                  return (
-                    <label
-                      key={stu.studentId}
-                      className="flex items-center gap-2 p-1.5 hover:bg-white rounded-lg text-xs cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setAssignStudentIds([...assignStudentIds, stu.studentId]);
-                          } else {
-                            setAssignStudentIds(
-                              assignStudentIds.filter((id) => id !== stu.studentId)
-                            );
-                          }
-                        }}
-                        className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
-                      />
-                      <span className="font-semibold text-slate-800">{stu.studentName}</span>
-                      <span className="text-[10px] text-slate-400">
-                        (Roll: {stu.rollNo} • Sec {stu.section})
-                      </span>
-                    </label>
-                  );
-                })}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">2. Due Date:</label>
+                <input
+                  type="date"
+                  value={assignDueDate}
+                  onChange={(e) => setAssignDueDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
-            </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Due Date</label>
-              <input
-                type="date"
-                value={assignDueDate}
-                onChange={(e) => setAssignDueDate(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  3. Instructions (Optional):
+                </label>
+                <textarea
+                  rows={2}
+                  value={assignInstructions}
+                  onChange={(e) => setAssignInstructions(e.target.value)}
+                  placeholder="e.g. Complete Level 1 objective questions with working steps in notebook..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Teacher Instructions (Optional)
-              </label>
-              <textarea
-                rows={2}
-                value={assignInstructions}
-                onChange={(e) => setAssignInstructions(e.target.value)}
-                placeholder="e.g., Solve all problems in homework notebook..."
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <span className="text-[11px] text-slate-500">
+                  Assigning to <strong className="text-slate-800">{assignStudentIds.length}</strong> students
+                </span>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setIsAssignModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleExecuteAssign}
-                disabled={isAssigning}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-xs flex items-center gap-1.5 disabled:opacity-50"
-              >
-                {isAssigning ? (
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Plus className="w-3.5 h-3.5" />
-                )}
-                <span>Assign to {assignStudentIds.length} Student(s)</span>
-              </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAssignModalOpen(false)}
+                    className="px-3.5 py-1.5 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExecuteAssign}
+                    disabled={isAssigning}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold disabled:opacity-50 shadow-xs"
+                  >
+                    {isAssigning ? "Assigning..." : "Confirm & Assign"}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

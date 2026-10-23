@@ -366,7 +366,7 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
             }`}
           >
             <Layers className="w-4 h-4" />
-            <span>Chapter Matrix Tracker</span>
+            <span>Homework Tracking</span>
           </button>
 
           <button
