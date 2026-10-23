@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { MASTER_BOOKS } from "./masterBooksData";
 
@@ -107,7 +108,38 @@ export async function seedMasterBooks() {
               status: "ACTIVE",
             },
           });
+        } else {
+          await prisma.exercise.update({
+            where: { id: existingEx.id },
+            data: {
+              name: exData.name,
+              totalQuestions: exData.totalQuestions,
+              questionRange: exData.questionRange || null,
+              pageNumber: exData.pageNumber || null,
+            },
+          });
         }
+      }
+
+      // Remove obsolete exercises no longer in master definitions for this chapter
+      const validExerciseNumbers = chData.exercises.map((e) => e.exerciseNumber);
+      const obsoleteExercises = await prisma.exercise.findMany({
+        where: {
+          chapterId: chapter.id,
+          exerciseNumber: { notIn: validExerciseNumbers },
+        },
+      });
+
+      for (const obsEx of obsoleteExercises) {
+        await prisma.homeworkProgressHistory.deleteMany({
+          where: { exerciseId: obsEx.id },
+        });
+        await prisma.homeworkAssignment.deleteMany({
+          where: { exerciseId: obsEx.id },
+        });
+        await prisma.exercise.delete({
+          where: { id: obsEx.id },
+        });
       }
     }
   }
@@ -140,18 +172,18 @@ export async function seedMasterBooks() {
         });
       }
 
-      // Sample progress patterns matching Section 133
-      // Rahul: Ex1: 20/20, Ex2: 15/20, Ex3: 10/15, Ex4: 0/20, Ex5: 12/12
-      // Aman: Ex1: 20/20, Ex2: 20/20, Ex3: 15/15, Ex4: 18/20, Ex5: 12/12
-      // Priya: Ex1: 10/20, Ex2: 0/20, Ex3: 8/15, Ex4: 0/20 (overdue), Ex5: 0/12
-      // Ananya: Ex1: 20/20, Ex2: 20/20, Ex3: 15/15, Ex4: 15/20, Ex5: 10/12
-      // Rohit: Ex1: 4/20, Ex2: 8/20, Ex3: 0/15, Ex4: 0/20 (overdue), Ex5: 6/12
+      // Sample progress patterns matching Level 1 to Level 4:
+      // Rahul: Ex1 (180/180), Ex2 (20/25), Ex3 (10/10), Ex4 (0/42)
+      // Aman: Ex1 (180/180), Ex2 (25/25), Ex3 (10/10), Ex4 (35/42)
+      // Priya: Ex1 (90/180), Ex2 (0/25), Ex3 (5/10), Ex4 (0/42, overdue)
+      // Ananya: Ex1 (180/180), Ex2 (25/25), Ex3 (10/10), Ex4 (30/42)
+      // Rohit: Ex1 (45/180), Ex2 (10/25), Ex3 (0/10), Ex4 (0/42, overdue)
       const progressMap: Record<string, number[]> = {
-        "rahul@classboard.com": [20, 15, 10, 0, 12],
-        "aman@classboard.com": [20, 20, 15, 18, 12],
-        "priya@classboard.com": [10, 0, 8, 0, 0],
-        "ananya@classboard.com": [20, 20, 15, 15, 10],
-        "rohit@classboard.com": [4, 8, 0, 0, 6],
+        "rahul@classboard.com": [180, 20, 10, 0],
+        "aman@classboard.com": [180, 25, 10, 35],
+        "priya@classboard.com": [90, 0, 5, 0],
+        "ananya@classboard.com": [180, 25, 10, 30],
+        "rohit@classboard.com": [45, 10, 0, 0],
       };
 
       const now = new Date();
