@@ -432,14 +432,17 @@ export async function GET(req: NextRequest) {
     // Map student ID to student records
     const studentUserMap = new Map<string, any>();
 
-    // If teacher filter applies, fetch all students assigned to this teacher for this subject
-    let assignedStudentIds: string[] | null = null;
+    // 1. Fetch all students assigned to this teacher for this subject
+    // Match by subject name (e.g. "Chemistry", which covers NEET Dropper, Class 11, Class 12) or subjectId
     if (teacherIdFilter) {
       const assignments = await prisma.teacherStudentAssignment.findMany({
         where: {
           teacherId: teacherIdFilter,
-          subjectId: selectedBook.subjectId,
           status: "ACTIVE",
+          OR: [
+            { subjectId: selectedBook.subjectId },
+            { subject: { name: selectedBook.subject.name } },
+          ],
         },
         include: {
           student: {
@@ -449,34 +452,70 @@ export async function GET(req: NextRequest) {
           },
         },
       });
-      assignedStudentIds = assignments.map((a) => a.studentId);
       for (const a of assignments) {
-        studentUserMap.set(a.studentId, a.student);
-      }
-    }
-
-    // If includeAllBookStudents is requested, also fetch students who have this book assigned
-    if (includeAllBookStudents) {
-      const bookStudents = await prisma.studentBook.findMany({
-        where: {
-          bookId: selectedBook.id,
-          ...(assignedStudentIds !== null ? { studentId: { in: assignedStudentIds } } : {}),
-        },
-        include: {
-          student: {
-            include: {
-              studentProfile: true,
-            },
-          },
-        },
-      });
-
-      for (const sb of bookStudents) {
-        if (!studentUserMap.has(sb.studentId)) {
-          studentUserMap.set(sb.studentId, sb.student);
+        if (a.student) {
+          studentUserMap.set(a.student.id, a.student);
         }
       }
     }
+
+    // 2. Also fetch students who have this book assigned in studentBook
+    const bookStudents = await prisma.studentBook.findMany({
+      where: {
+        bookId: selectedBook.id,
+        ...(teacherIdFilter
+          ? {
+              OR: [
+                { assignedByTeacherId: teacherIdFilter },
+                { studentId: { in: Array.from(studentUserMap.keys()) } },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        student: {
+          include: {
+            studentProfile: true,
+          },
+        },
+      },
+    });
+
+    for (const sb of bookStudents) {
+      if (sb.student && !studentUserMap.has(sb.student.id)) {
+        studentUserMap.set(sb.student.id, sb.student);
+      }
+    }
+
+    // 3. Also include any student who has homework assignments in this book
+    const hwStudents = await prisma.homeworkAssignment.findMany({
+      where: {
+        bookId: selectedBook.id,
+        ...(teacherIdFilter
+          ? {
+              OR: [
+                { teacherId: teacherIdFilter },
+                { studentId: { in: Array.from(studentUserMap.keys()) } },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        student: {
+          include: {
+            studentProfile: true,
+          },
+        },
+      },
+    });
+
+    for (const hw of hwStudents) {
+      if (hw.student && !studentUserMap.has(hw.student.id)) {
+        studentUserMap.set(hw.student.id, hw.student);
+      }
+    }
+
+    const assignedStudentIds = teacherIdFilter ? Array.from(studentUserMap.keys()) : null;
 
     const now = new Date();
 
