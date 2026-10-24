@@ -633,7 +633,8 @@ export function TeacherChapterProgress({
     return (
       <div
         key={chapter.id}
-        className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all"
+        id={`chapter-table-${chapter.id}`}
+        className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all scroll-mt-24"
       >
         {/* Chapter Header Card (especially valuable in All Chapters mode) */}
         <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-50 via-indigo-50/30 to-white border-b border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-3.5">
@@ -1627,6 +1628,55 @@ export function TeacherChapterProgress({
         <>
           {viewMode === "all" && matrixData.chapters ? (
             <div className="space-y-6">
+              {/* Quick Jump Chapter Bar */}
+              {matrixData.chapters.length > 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-3.5 flex items-center gap-2 overflow-x-auto print:hidden">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Quick Jump:</span>
+                  </span>
+                  {matrixData.chapters.map((chMatrix: any) => {
+                    const hasDone = (chMatrix.stats?.completedStudents || 0) > 0;
+                    const hasInProgress = (chMatrix.stats?.inProgressStudents || 0) > 0;
+                    const hasActivity = hasDone || hasInProgress;
+
+                    return (
+                      <button
+                        key={chMatrix.chapter.id}
+                        type="button"
+                        onClick={() => {
+                          const el = document.getElementById(`chapter-table-${chMatrix.chapter.id}`);
+                          if (el) {
+                            el.scrollIntoView({ behavior: "smooth", block: "start" });
+                          }
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border cursor-pointer ${
+                          hasActivity
+                            ? "bg-indigo-50/90 text-indigo-700 border-indigo-200 hover:bg-indigo-100 shadow-2xs"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                        title={`Ch ${chMatrix.chapter.chapterNumber}: ${chMatrix.chapter.name} (${hasActivity ? "Active homework updates" : "No assignments yet"})`}
+                      >
+                        <span>Ch. {chMatrix.chapter.chapterNumber}</span>
+                        {hasDone && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[9px] font-extrabold bg-emerald-500 text-white">
+                            ✓ {chMatrix.stats.completedStudents}
+                          </span>
+                        )}
+                        {hasInProgress && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[9px] font-extrabold bg-amber-500 text-white">
+                            ● {chMatrix.stats.inProgressStudents}
+                          </span>
+                        )}
+                        {!hasActivity && (
+                          <span className="text-[10px] text-slate-400 font-normal">0 tasks</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {matrixData.chapters.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
                   <BookOpen className="w-10 h-10 text-slate-300 mx-auto" />
