@@ -34,7 +34,7 @@ interface TeacherDashboardProps {
 }
 
 export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "assign" | "chapterProgress" | "library" | "reviews" | "students">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "assign" | "chapterProgress" | "library" | "reviews" | "students">("chapterProgress");
   const [monitoringFilter, setMonitoringFilter] = useState<string>("ALL");
   const [searchStudent, setSearchStudent] = useState<string>("");
 
@@ -304,7 +304,7 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
         fetchData();
         setTimeout(() => {
           setAssignSuccessMsg(null);
-          setActiveTab("overview");
+          setActiveTab("chapterProgress");
         }, 2000);
       } else {
         alert(data.error || "Failed to assign homework");
@@ -402,17 +402,6 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
       <div className="flex flex-wrap items-center justify-between border-b border-slate-200 pb-2 gap-3">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setActiveTab("overview")}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === "overview"
-                ? "bg-slate-900 text-white shadow-xs"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            Today's Homework & Monitoring
-          </button>
-
-          <button
             onClick={() => setActiveTab("chapterProgress")}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
               activeTab === "chapterProgress"
@@ -422,6 +411,17 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
           >
             <Layers className="w-4 h-4" />
             <span>Homework Tracking</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("overview")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "overview"
+                ? "bg-slate-900 text-white shadow-xs"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            Today's Homework & Monitoring
           </button>
 
           <button
