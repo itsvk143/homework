@@ -44,7 +44,9 @@ export function StudentBookProgressModal({
   const [activeExercise, setActiveExercise] = useState<any | null>(exercise);
 
   const totalQuestions =
+    exercise?.totalQuestions ||
     activeExercise?.totalQuestions ||
+    currentHw?.exercise?.totalQuestions ||
     currentHw?.totalQuestions ||
     10;
 
@@ -68,7 +70,11 @@ export function StudentBookProgressModal({
   // Sync state whenever exercise or currentHw changes
   useEffect(() => {
     setActiveExercise(exercise);
-    const totalQ = exercise?.totalQuestions || currentHw?.totalQuestions || 10;
+    const totalQ =
+      exercise?.totalQuestions ||
+      currentHw?.exercise?.totalQuestions ||
+      currentHw?.totalQuestions ||
+      10;
     const initialQ = currentHw ? Math.min(currentHw.questionsCompleted || 0, totalQ) : 0;
     const initialStatus =
       currentHw?.exerciseStatus === "COMPLETED" || initialQ === totalQ

@@ -39,21 +39,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Homework assignment not found" }, { status: 404 });
     }
 
-    if (questionsCompleted < 0 || questionsCompleted > assignment.totalQuestions) {
+    const trueTotal = assignment.exercise?.totalQuestions || assignment.totalQuestions;
+
+    if (questionsCompleted < 0 || questionsCompleted > trueTotal) {
       return NextResponse.json(
-        { error: `Questions completed must be between 0 and ${assignment.totalQuestions}.` },
+        { error: `Questions completed must be between 0 and ${trueTotal}.` },
         { status: 400 }
       );
     }
 
     const previousCount = assignment.questionsCompleted;
     const delta = questionsCompleted - previousCount;
-    const pct = Math.round((questionsCompleted / assignment.totalQuestions) * 100);
+    const pct = trueTotal > 0 ? Math.round((questionsCompleted / trueTotal) * 100) : 0;
 
     let exStatus = "NOT_STARTED";
     let hwStatus = assignment.homeworkStatus;
 
-    if (questionsCompleted >= assignment.totalQuestions) {
+    if (questionsCompleted >= trueTotal) {
       exStatus = "COMPLETED";
       hwStatus = "COMPLETED";
     } else if (questionsCompleted > 0) {
@@ -71,13 +73,14 @@ export async function POST(req: NextRequest) {
     const updatedAssignment = await prisma.homeworkAssignment.update({
       where: { id: assignment.id },
       data: {
+        totalQuestions: trueTotal,
         questionsCompleted,
         progressPercentage: pct,
         exerciseStatus: exStatus,
         homeworkStatus: hwStatus,
         lastProgressUpdate: now,
         startedAt: assignment.startedAt || (questionsCompleted > 0 ? now : null),
-        completedAt: questionsCompleted >= assignment.totalQuestions ? now : null,
+        completedAt: questionsCompleted >= trueTotal ? now : null,
       },
     });
 
@@ -88,8 +91,8 @@ export async function POST(req: NextRequest) {
         studentId: assignment.studentId,
         exerciseId: assignment.exerciseId,
         questionsCompleted,
-        totalQuestions: assignment.totalQuestions,
-        questionsRemaining: assignment.totalQuestions - questionsCompleted,
+        totalQuestions: trueTotal,
+        questionsRemaining: trueTotal - questionsCompleted,
         progressPercentage: pct,
         deltaQuestions: delta,
         status: exStatus,

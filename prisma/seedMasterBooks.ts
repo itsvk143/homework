@@ -329,6 +329,35 @@ export async function seedMasterBooks() {
     }
   }
 
+  // 4. Synchronize all existing homework assignments with authoritative exercise question counts
+  const allAssignments = await prisma.homeworkAssignment.findMany({
+    include: { exercise: true },
+  });
+  for (const h of allAssignments) {
+    if (!h.exercise) continue;
+    const exTotal = h.exercise.totalQuestions;
+    const isCompleted =
+      h.exerciseStatus === "COMPLETED" ||
+      h.homeworkStatus === "COMPLETED" ||
+      (h.totalQuestions > 0 && h.questionsCompleted >= h.totalQuestions);
+    const newCompleted = isCompleted ? exTotal : Math.min(h.questionsCompleted, exTotal);
+    const newPct = exTotal > 0 ? Math.round((newCompleted / exTotal) * 100) : 0;
+    const newStatus = isCompleted ? "COMPLETED" : newCompleted > 0 ? "IN_PROGRESS" : "NOT_STARTED";
+
+    if (h.totalQuestions !== exTotal || h.questionsCompleted !== newCompleted || h.progressPercentage !== newPct) {
+      await prisma.homeworkAssignment.update({
+        where: { id: h.id },
+        data: {
+          totalQuestions: exTotal,
+          questionsCompleted: newCompleted,
+          progressPercentage: newPct,
+          exerciseStatus: newStatus,
+          homeworkStatus: isCompleted ? "COMPLETED" : h.homeworkStatus,
+        },
+      });
+    }
+  }
+
   console.log("✅ Master Book Library and Chapter Progress seeding completed successfully!");
 }
 

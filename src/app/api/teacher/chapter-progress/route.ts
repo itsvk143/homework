@@ -77,14 +77,27 @@ function computeChapterMatrixData({
       }
 
       assignedExerciseCount++;
-      const completed = hw.questionsCompleted || 0;
-      const total = hw.totalQuestions || 0;
-      const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+      const total = ex.totalQuestions || hw.totalQuestions || 0;
+      
+      const isMarkedCompleted =
+        hw.exerciseStatus === "COMPLETED" ||
+        hw.homeworkStatus === "COMPLETED" ||
+        (hw.totalQuestions > 0 && hw.questionsCompleted >= hw.totalQuestions);
+
+      const completed = isMarkedCompleted
+        ? total
+        : Math.min(hw.questionsCompleted || 0, total);
+
+      const pct = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
       totalCompletedQuestions += completed;
       totalAssignedQuestions += total;
 
       const effectiveExerciseStatus =
-        completed >= total && total > 0 ? "COMPLETED" : hw.exerciseStatus;
+        isMarkedCompleted || (completed >= total && total > 0)
+          ? "COMPLETED"
+          : completed > 0
+          ? "IN_PROGRESS"
+          : hw.exerciseStatus;
 
       const isCompleted = effectiveExerciseStatus === "COMPLETED";
       const isOverdue =
@@ -107,6 +120,27 @@ function computeChapterMatrixData({
         if (!latestUpdate || updDate > latestUpdate) {
           latestUpdate = updDate;
         }
+      }
+
+      // Self-heal out-of-sync database assignment records in the background
+      if (
+        hw.id &&
+        (hw.totalQuestions !== total ||
+          (isMarkedCompleted && hw.questionsCompleted !== total) ||
+          hw.progressPercentage !== pct)
+      ) {
+        prisma.homeworkAssignment
+          .update({
+            where: { id: hw.id },
+            data: {
+              totalQuestions: total,
+              questionsCompleted: completed,
+              progressPercentage: pct,
+              exerciseStatus: effectiveExerciseStatus,
+              homeworkStatus: isCompleted ? "COMPLETED" : hw.homeworkStatus,
+            },
+          })
+          .catch((e: any) => console.error("Self-healing assignment sync error:", e));
       }
 
       return {
