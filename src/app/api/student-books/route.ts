@@ -97,3 +97,85 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to assign book to student" }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await getCurrentUser();
+    if (!user || (user.role !== "ADMIN" && user.role !== "TEACHER")) {
+      return NextResponse.json(
+        { error: "Unauthorized. Admin or Teacher access required." },
+        { status: 403 }
+      );
+    }
+
+    const { searchParams } = new URL(req.url);
+    let studentId = searchParams.get("studentId");
+    let bookId = searchParams.get("bookId");
+
+    if (!studentId || !bookId) {
+      try {
+        const body = await req.json();
+        studentId = studentId || body.studentId;
+        bookId = bookId || body.bookId;
+      } catch (e) {
+        // body may be empty
+      }
+    }
+
+    if (!studentId || !bookId) {
+      return NextResponse.json(
+        { error: "studentId and bookId are required" },
+        { status: 400 }
+      );
+    }
+
+    // If teacher, verify authorization to manage this student or this book assignment
+    if (user.role === "TEACHER") {
+      const isAssigned = await prisma.teacherStudentAssignment.findFirst({
+        where: {
+          teacherId: user.id,
+          studentId,
+          status: "ACTIVE",
+        },
+      });
+      const isAssigner = await prisma.studentBook.findFirst({
+        where: {
+          studentId,
+          bookId,
+          assignedByTeacherId: user.id,
+        },
+      });
+
+      if (!isAssigned && !isAssigner) {
+        return NextResponse.json(
+          { error: "You are not authorized to manage this student's books." },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Delete the assigned book record
+    const result = await prisma.studentBook.deleteMany({
+      where: {
+        studentId,
+        bookId,
+      },
+    });
+
+    await logAuditEvent({
+      userId: user.id,
+      action: "UNASSIGN_BOOK_FROM_STUDENT",
+      entityType: "StudentBook",
+      metadata: { studentId, bookId, count: result.count },
+    });
+
+    return NextResponse.json({ success: true, count: result.count });
+  } catch (error: any) {
+    console.error("Error unassigning book:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to unassign book" },
+      { status: 500 }
+    );
+  }
+}
+

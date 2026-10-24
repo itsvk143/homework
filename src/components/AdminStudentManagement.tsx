@@ -66,6 +66,69 @@ export function AdminStudentManagement() {
   const [deletingStudent, setDeletingStudent] = useState<any>(null);
   const [viewingStudentProfile, setViewingStudentProfile] = useState<any | null>(null);
   const [expandedAdminProfileBooks, setExpandedAdminProfileBooks] = useState<Record<string, boolean>>({});
+  const [isRemovingBook, setIsRemovingBook] = useState<string | null>(null);
+
+  const handleRemoveAssignedBook = async (studentId: string, bookId: string, bookName: string) => {
+    if (
+      !confirm(
+        `Are you sure you want to remove the book "${bookName}" from ${viewingStudentProfile?.name || "this student"}?`
+      )
+    ) {
+      return;
+    }
+
+    setIsRemovingBook(bookId);
+    try {
+      const res = await fetch(`/api/student-books?studentId=${studentId}&bookId=${bookId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        // 1. Update modal state
+        setViewingStudentProfile((prev: any) => {
+          if (!prev) return prev;
+          const updated = (prev.assignedBooksAsStudent || []).filter(
+            (ab: any) => (ab.book?.id || ab.bookId || ab.id) !== bookId
+          );
+          return {
+            ...prev,
+            assignedBooksAsStudent: updated,
+          };
+        });
+
+        // 2. Update students list
+        setStudents((prevList) => {
+          const updatedList = prevList.map((s) => {
+            if (s.id !== studentId) return s;
+            const updated = (s.assignedBooksAsStudent || []).filter(
+              (ab: any) => (ab.book?.id || ab.bookId || ab.id) !== bookId
+            );
+            return {
+              ...s,
+              assignedBooksAsStudent: updated,
+            };
+          });
+          try {
+            localStorage.setItem("cb_persistent_students", JSON.stringify(updatedList));
+          } catch {}
+          return updatedList;
+        });
+
+        setFeedbackMsg({
+          type: "success",
+          text: `Successfully removed "${bookName}" from ${viewingStudentProfile?.name}.`,
+        });
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to remove book");
+      }
+    } catch (err) {
+      console.error("Error removing assigned book:", err);
+      alert("Error removing assigned book");
+    } finally {
+      setIsRemovingBook(null);
+    }
+  };
 
   // Assignment Modal State
   const [assigningStudent, setAssigningStudent] = useState<any>(null);
@@ -1479,31 +1542,48 @@ export function AdminStudentManagement() {
                                   </div>
                                 </div>
 
-                                <button
-                                  onClick={() =>
-                                    setExpandedAdminProfileBooks((prev) => ({
-                                      ...prev,
-                                      [bookId]: prev[bookId] === undefined ? false : !prev[bookId],
-                                    }))
-                                  }
-                                  className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
-                                    isExpanded
-                                      ? "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                                      : "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 shadow-2xs"
-                                  }`}
-                                >
-                                  {isExpanded ? (
-                                    <>
-                                      <ChevronUp className="w-3.5 h-3.5" />
-                                      <span>Compress Book</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ChevronDown className="w-3.5 h-3.5" />
-                                      <span>Expand Book ({chapters.length} Chs)</span>
-                                    </>
-                                  )}
-                                </button>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRemoveAssignedBook(viewingStudentProfile.id, b.id, b.name);
+                                    }}
+                                    disabled={isRemovingBook === b.id}
+                                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-rose-600 bg-white hover:bg-rose-50 border border-rose-200 hover:border-rose-300 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                                    title={`Remove "${b.name}" from ${viewingStudentProfile.name}`}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>{isRemovingBook === b.id ? "Removing..." : "Remove"}</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setExpandedAdminProfileBooks((prev) => ({
+                                        ...prev,
+                                        [bookId]: prev[bookId] === undefined ? false : !prev[bookId],
+                                      }))
+                                    }
+                                    className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                                      isExpanded
+                                        ? "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                        : "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 shadow-2xs"
+                                    }`}
+                                  >
+                                    {isExpanded ? (
+                                      <>
+                                        <ChevronUp className="w-3.5 h-3.5" />
+                                        <span>Compress Book</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <ChevronDown className="w-3.5 h-3.5" />
+                                        <span>Expand Book ({chapters.length} Chs)</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
                               </div>
 
                               {/* Expanded Chapters & Exercises */}

@@ -24,6 +24,7 @@ import {
   ChevronUp,
   Maximize2,
   Minimize2,
+  Trash2,
 } from "lucide-react";
 import { BookLibrary } from "./BookLibrary";
 import { TeacherChapterProgress } from "./TeacherChapterProgress";
@@ -64,6 +65,60 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
   // Student Profile Drilldown state
   const [selectedStudentProfile, setSelectedStudentProfile] = useState<any | null>(null);
   const [expandedProfileBooks, setExpandedProfileBooks] = useState<Record<string, boolean>>({});
+  const [isRemovingBook, setIsRemovingBook] = useState<string | null>(null);
+
+  const handleRemoveAssignedBook = async (studentId: string, bookId: string, bookName: string) => {
+    if (
+      !confirm(
+        `Are you sure you want to remove the book "${bookName}" from ${selectedStudentProfile?.name || "this student"}?`
+      )
+    ) {
+      return;
+    }
+
+    setIsRemovingBook(bookId);
+    try {
+      const res = await fetch(`/api/student-books?studentId=${studentId}&bookId=${bookId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        // 1. Update active student profile drawer state immediately
+        setSelectedStudentProfile((prev: any) => {
+          if (!prev) return prev;
+          const updatedBooks = (prev.assignedBooksAsStudent || []).filter(
+            (ab: any) => (ab.book?.id || ab.bookId || ab.id) !== bookId
+          );
+          return {
+            ...prev,
+            assignedBooksAsStudent: updatedBooks,
+          };
+        });
+
+        // 2. Update students state in grid
+        setStudents((prevList) =>
+          prevList.map((s) => {
+            if (s.id !== studentId) return s;
+            const updatedBooks = (s.assignedBooksAsStudent || []).filter(
+              (ab: any) => (ab.book?.id || ab.bookId || ab.id) !== bookId
+            );
+            return {
+              ...s,
+              assignedBooksAsStudent: updatedBooks,
+            };
+          })
+        );
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to remove book");
+      }
+    } catch (err) {
+      console.error("Error removing assigned book:", err);
+      alert("Error removing assigned book");
+    } finally {
+      setIsRemovingBook(null);
+    }
+  };
 
   // Fetch initial data
   const fetchData = async () => {
@@ -1277,31 +1332,48 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
                                 </div>
                               </div>
 
-                              <button
-                                onClick={() =>
-                                  setExpandedProfileBooks((prev) => ({
-                                    ...prev,
-                                    [bookId]: prev[bookId] === undefined ? false : !prev[bookId],
-                                  }))
-                                }
-                                className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
-                                  isExpanded
-                                    ? "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                                    : "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
-                                }`}
-                              >
-                                {isExpanded ? (
-                                  <>
-                                    <ChevronUp className="w-3.5 h-3.5" />
-                                    <span>Compress</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <ChevronDown className="w-3.5 h-3.5" />
-                                    <span>Expand ({chapters.length} Chs)</span>
-                                  </>
-                                )}
-                              </button>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveAssignedBook(selectedStudentProfile.id, b.id, b.name);
+                                  }}
+                                  disabled={isRemovingBook === b.id}
+                                  className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold text-rose-600 bg-white hover:bg-rose-50 border border-rose-200 hover:border-rose-300 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                                  title={`Remove "${b.name}" from ${selectedStudentProfile.name}`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>{isRemovingBook === b.id ? "Removing..." : "Remove"}</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedProfileBooks((prev) => ({
+                                      ...prev,
+                                      [bookId]: prev[bookId] === undefined ? false : !prev[bookId],
+                                    }))
+                                  }
+                                  className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                                    isExpanded
+                                      ? "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                      : "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+                                  }`}
+                                >
+                                  {isExpanded ? (
+                                    <>
+                                      <ChevronUp className="w-3.5 h-3.5" />
+                                      <span>Compress</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ChevronDown className="w-3.5 h-3.5" />
+                                      <span>Expand ({chapters.length} Chs)</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
                             </div>
 
                             {/* Expanded Chapters & Exercises */}
