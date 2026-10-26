@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
                 subject: true,
                 chapters: {
                   include: {
-                    exercises: true,
+                    exercises: { select: { id: true } },
                   },
                   orderBy: { chapterNumber: "asc" },
                 },

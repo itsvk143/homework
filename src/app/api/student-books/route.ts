@@ -24,9 +24,11 @@ export async function GET(req: NextRequest) {
             subject: true,
             chapters: {
               where: { status: { not: "ARCHIVED" } },
+              orderBy: { chapterNumber: "asc" },
               include: {
                 exercises: {
                   where: { status: { not: "ARCHIVED" } },
+                  orderBy: { displayOrder: "asc" },
                 },
               },
             },

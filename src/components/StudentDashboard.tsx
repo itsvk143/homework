@@ -27,6 +27,14 @@ import {
   Dna,
   Calculator,
   School,
+  ShieldCheck,
+  Edit3,
+  Save,
+  X,
+  Minus,
+  Plus,
+  Loader2,
+  Info,
 } from "lucide-react";
 import { QuickProgressModal } from "./QuickProgressModal";
 import { ProofUploadModal } from "./ProofUploadModal";
@@ -37,7 +45,8 @@ interface StudentDashboardProps {
 }
 
 export function StudentDashboard({ currentUser }: StudentDashboardProps) {
-  const [activeTab, setActiveTab] = useState<"homework" | "books" | "calendar">("homework");
+  // Requirement: "My Books is the first tab and the default selected tab."
+  const [activeTab, setActiveTab] = useState<"books" | "homework" | "calendar">("books");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [subjectFilter, setSubjectFilter] = useState<string>("ALL");
   const [homeworkList, setHomeworkList] = useState<any[]>([]);
@@ -45,39 +54,19 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
   const [facultyAssignments, setFacultyAssignments] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Book & Chapter Expand/Compress State
+  // Requirement: Everything remains compressed / collapsed by default!
   const [expandedBooks, setExpandedBooks] = useState<Record<string, boolean>>({});
   const [expandedChapters, setExpandedChapters] = useState<Record<string, boolean>>({});
+  const [showFacultySection, setShowFacultySection] = useState<boolean>(false);
 
-  const toggleBookExpansion = (bookId: string) => {
-    setExpandedBooks((prev) => ({
-      ...prev,
-      [bookId]: prev[bookId] === undefined ? false : !prev[bookId],
-    }));
-  };
-
-  const expandAllBooks = () => {
-    const next: Record<string, boolean> = {};
-    studentBooks.forEach((sb) => {
-      next[sb.id] = true;
-    });
-    setExpandedBooks(next);
-  };
-
-  const compressAllBooks = () => {
-    const next: Record<string, boolean> = {};
-    studentBooks.forEach((sb) => {
-      next[sb.id] = false;
-    });
-    setExpandedBooks(next);
-  };
-
-  const toggleChapterExpansion = (chId: string) => {
-    setExpandedChapters((prev) => ({
-      ...prev,
-      [chId]: prev[chId] === undefined ? false : !prev[chId],
-    }));
-  };
+  // Trusted Student Question Count Editing State
+  const [editingExerciseCount, setEditingExerciseCount] = useState<Record<string, number>>({});
+  const [isSavingQuestionCount, setIsSavingQuestionCount] = useState<Record<string, boolean>>({});
+  const [countFeedback, setCountFeedback] = useState<{
+    exerciseId: string;
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   // Modals state
   const [selectedAssignment, setSelectedAssignment] = useState<any | null>(null);
@@ -153,7 +142,7 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
   const overallProgressPercentage =
     totalHomework > 0 ? Math.round((completedCount / totalHomework) * 100) : 0;
 
-  // Filtered list
+  // Filtered homework list
   const filteredHomework = homeworkList.filter((hw) => {
     if (statusFilter === "IN_PROGRESS" && hw.exerciseStatus !== "IN_PROGRESS") return false;
     if (statusFilter === "COMPLETED" && hw.exerciseStatus !== "COMPLETED") return false;
@@ -166,6 +155,35 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
     return true;
   });
 
+  // Book & Chapter Expansion Helpers
+  const toggleBookExpansion = (bookId: string) => {
+    setExpandedBooks((prev) => ({
+      ...prev,
+      [bookId]: !prev[bookId],
+    }));
+  };
+
+  const expandAllBooks = () => {
+    const next: Record<string, boolean> = {};
+    studentBooks.forEach((sb) => {
+      next[sb.id] = true;
+    });
+    setExpandedBooks(next);
+  };
+
+  const compressAllBooks = () => {
+    setExpandedBooks({});
+    setExpandedChapters({});
+  };
+
+  const toggleChapterExpansion = (chId: string) => {
+    setExpandedChapters((prev) => ({
+      ...prev,
+      [chId]: !prev[chId],
+    }));
+  };
+
+  // Modals handlers
   const handleOpenProgress = (hw: any) => {
     setSelectedAssignment(hw);
     setIsProgressModalOpen(true);
@@ -243,6 +261,133 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
     }
   };
 
+  // Trusted Student Question Count Handlers
+  const handleStartEditCount = (exercise: any) => {
+    setEditingExerciseCount((prev) => ({
+      ...prev,
+      [exercise.id]: exercise.totalQuestions || 10,
+    }));
+  };
+
+  const handleCancelEditCount = (exerciseId: string) => {
+    setEditingExerciseCount((prev) => {
+      const next = { ...prev };
+      delete next[exerciseId];
+      return next;
+    });
+    setCountFeedback((prev) => (prev?.exerciseId === exerciseId ? null : prev));
+  };
+
+  const handleChangeCountValue = (exerciseId: string, val: number, min = 1, max = 500) => {
+    const clamped = Math.max(min, Math.min(max, val));
+    setEditingExerciseCount((prev) => ({
+      ...prev,
+      [exerciseId]: clamped,
+    }));
+  };
+
+  const handleSaveExerciseQuestionCount = async (
+    exercise: any,
+    book: any,
+    min = 1,
+    max = 500
+  ) => {
+    const newCount = editingExerciseCount[exercise.id];
+    if (newCount === undefined || newCount < min || newCount > max) {
+      setCountFeedback({
+        exerciseId: exercise.id,
+        type: "error",
+        text: `Count must be between ${min} and ${max}`,
+      });
+      return;
+    }
+
+    const hw = homeworkList.find((h) => h.exerciseId === exercise.id);
+    const completedNow = hw?.questionsCompleted || 0;
+    if (newCount < completedNow) {
+      const confirmReduce = confirm(
+        `Warning: You have completed ${completedNow} questions in this exercise. Reducing the question count to ${newCount} will update the exercise configuration for ALL students assigned to "${book.name}". Do you want to proceed?`
+      );
+      if (!confirmReduce) return;
+    }
+
+    setIsSavingQuestionCount((prev) => ({ ...prev, [exercise.id]: true }));
+    try {
+      const res = await fetch(`/api/exercises/${exercise.id}/question-count`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newCount, bookId: book.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCountFeedback({
+          exerciseId: exercise.id,
+          type: "error",
+          text: data.error || "Failed to update question count",
+        });
+      } else {
+        setCountFeedback({
+          exerciseId: exercise.id,
+          type: "success",
+          text: `Updated to ${newCount} questions for all students!`,
+        });
+
+        // Update local studentBooks state with canonical question count
+        setStudentBooks((prev) =>
+          prev.map((sb) => {
+            if (sb.book.id !== book.id) return sb;
+            return {
+              ...sb,
+              book: {
+                ...sb.book,
+                chapters: sb.book.chapters?.map((ch: any) => ({
+                  ...ch,
+                  exercises: ch.exercises?.map((ex: any) =>
+                    ex.id === exercise.id ? { ...ex, totalQuestions: newCount } : ex
+                  ),
+                })),
+              },
+            };
+          })
+        );
+
+        // Update local homeworkList state
+        setHomeworkList((prev) =>
+          prev.map((h) => {
+            if (h.exerciseId !== exercise.id) return h;
+            const qDone = h.questionsCompleted;
+            const isCompleted = qDone >= newCount;
+            const newPct = newCount > 0 ? Math.min(100, Math.round((qDone / newCount) * 100)) : 0;
+            return {
+              ...h,
+              totalQuestions: newCount,
+              progressPercentage: newPct,
+              exerciseStatus: isCompleted ? "COMPLETED" : qDone > 0 ? "IN_PROGRESS" : "NOT_STARTED",
+            };
+          })
+        );
+
+        // Close editor after short delay
+        setTimeout(() => {
+          handleCancelEditCount(exercise.id);
+        }, 1500);
+
+        setTimeout(() => {
+          setCountFeedback((current) => (current?.exerciseId === exercise.id ? null : current));
+        }, 4000);
+      }
+    } catch (err: any) {
+      console.error("Error saving exercise question count:", err);
+      setCountFeedback({
+        exerciseId: exercise.id,
+        type: "error",
+        text: "Network error saving question count",
+      });
+    } finally {
+      setIsSavingQuestionCount((prev) => ({ ...prev, [exercise.id]: false }));
+    }
+  };
+
   // Distinct subjects from assigned books
   const subjects = Array.from(
     new Set(studentBooks.map((sb) => JSON.stringify(sb.book.subject)))
@@ -253,11 +398,16 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
   const studentSection = currentUser?.studentProfile?.section || "A";
   const studentRoll = currentUser?.studentProfile?.rollNo || "--";
 
-  // Determine subjects for student's academic track according to rules:
-  // Physics & Chemistry: Class 11, Class 11 NEET, Class 11 JEE, NEET Dropper, Class 12, Class 12 NEET, Class 12 JEE, JEE Dropper
-  // Biology: Class 11, Class 11 NEET, NEET Dropper, Class 12, Class 12 NEET
-  // Mathematics: Class 11, Class 11 JEE, Class 12, Class 12 JEE, JEE Dropper
-  const isNEETTrack = studentGrade.toLowerCase().includes("neet") || (!studentGrade.toLowerCase().includes("jee") && !studentGrade.includes("Class 4") && !studentGrade.includes("Class 5") && !studentGrade.includes("Class 6") && !studentGrade.includes("Class 7") && !studentGrade.includes("Class 8") && !studentGrade.includes("Class 9") && !studentGrade.includes("Class 10"));
+  const isNEETTrack =
+    studentGrade.toLowerCase().includes("neet") ||
+    (!studentGrade.toLowerCase().includes("jee") &&
+      !studentGrade.includes("Class 4") &&
+      !studentGrade.includes("Class 5") &&
+      !studentGrade.includes("Class 6") &&
+      !studentGrade.includes("Class 7") &&
+      !studentGrade.includes("Class 8") &&
+      !studentGrade.includes("Class 9") &&
+      !studentGrade.includes("Class 10"));
   const isJEETrack = studentGrade.toLowerCase().includes("jee");
 
   const streamSubjects: Array<{ name: string; classGrade: string; color: string; icon: string; badge: string }> = [
@@ -265,7 +415,11 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
     { name: "Chemistry", classGrade: studentGrade, color: "#D97706", icon: "flask-conical", badge: "Core Science" },
   ];
 
-  if (isNEETTrack || (!isJEETrack && (studentGrade.includes("11") || studentGrade.includes("12") || studentGrade.toLowerCase().includes("dropper")))) {
+  if (
+    isNEETTrack ||
+    (!isJEETrack &&
+      (studentGrade.includes("11") || studentGrade.includes("12") || studentGrade.toLowerCase().includes("dropper")))
+  ) {
     streamSubjects.push({ name: "Biology", classGrade: studentGrade, color: "#059669", icon: "dna", badge: "Medical Track" });
   }
   if (isJEETrack || (!isNEETTrack && (studentGrade.includes("11") || studentGrade.includes("12")))) {
@@ -273,267 +427,145 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-3xl gradient-brand p-6 sm:p-8 text-white shadow-xl shadow-indigo-500/15">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold text-white/90 border border-white/20">
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>
-                {currentUser?.studentProfile?.schoolName || "LV INSTITUTE"} • {studentGrade} • Section {studentSection} • Roll #{studentRoll}
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Good day, {currentUser?.name?.split(" ")[0] || "Student"}! 👋
-            </h1>
-            <p className="text-xs sm:text-sm text-indigo-100 max-w-xl">
-              Track your exercises, update completed questions in seconds, and stay ahead of your due dates.
-            </p>
-          </div>
-
-          {/* Quick Overall Metric Pill */}
-          <div className="flex items-center gap-3 sm:gap-4 bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20">
-            <div className="text-center">
-              <div className="text-2xl sm:text-3xl font-black">{overallProgressPercentage}%</div>
-              <div className="text-[10px] uppercase font-semibold text-indigo-200">
-                Completed
-              </div>
-            </div>
-            <div className="w-px h-10 bg-white/20" />
-            <div className="text-xs space-y-1">
-              <div className="flex items-center justify-between gap-3 text-white/90">
-                <span>Total:</span>
-                <span className="font-bold">{totalHomework}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3 text-emerald-300">
-                <span>Done:</span>
-                <span className="font-bold">{completedCount}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3 text-amber-300">
-                <span>Pending:</span>
-                <span className="font-bold">{totalHomework - completedCount}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* MY ACADEMIC CLASS & FACULTY PANEL */}
-      <div className="bg-white rounded-3xl border border-slate-200/90 p-5 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
+    <div className="space-y-4">
+      {/* COMPACT & STREAMLINED TOP HEADER */}
+      <div className="bg-white rounded-3xl border border-slate-200/90 p-4 sm:p-5 shadow-xs transition-all">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center font-black">
-              <GraduationCap className="w-5 h-5" />
+            <div className="w-11 h-11 rounded-2xl gradient-brand text-white flex items-center justify-center font-black text-sm shadow-sm shrink-0">
+              {currentUser?.name?.slice(0, 2).toUpperCase() || "ST"}
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-slate-900">
-                  Enrolled Class: <span className="text-indigo-600">{studentGrade}</span>
-                </h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
+                  Good day, {currentUser?.name?.split(" ")[0] || "Student"}! 👋
+                </h1>
                 <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Section {studentSection}
+                  {studentGrade}
                 </span>
                 <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  Roll #{studentRoll}
+                  Sec {studentSection} • #{studentRoll}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Academic Curriculum & Assigned Faculty for {studentGrade}
+              <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
+                {currentUser?.studentProfile?.schoolName || "LV INSTITUTE"} • Track your exercises & stay on schedule
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200/80">
-            <School className="w-4 h-4 text-slate-400" />
-            <span>{currentUser?.studentProfile?.schoolName || "LV INSTITUTE"}</span>
+          <div className="flex items-center gap-2.5 self-start sm:self-center flex-wrap">
+            {/* Quick Overall Metric Pill */}
+            <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+              <span className="font-black text-indigo-600 text-sm">{overallProgressPercentage}%</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400">Done</span>
+              <span className="text-slate-300">|</span>
+              <span className="text-slate-600 font-bold">{completedCount}/{totalHomework} HW</span>
+            </div>
+
+            {/* Toggle Class & Faculty Drawer Button */}
+            <button
+              onClick={() => setShowFacultySection((prev) => !prev)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition-colors border border-indigo-200/80 cursor-pointer"
+              title="View enrolled class and assigned faculty"
+            >
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>Faculty & Roster</span>
+              {showFacultySection ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
           </div>
         </div>
 
-        {/* Subjects Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {streamSubjects.map((sub) => {
-            const assignment = facultyAssignments.find(
-              (a) => a.subject?.name?.toLowerCase() === sub.name.toLowerCase()
-            );
-
-            return (
-              <div
-                key={sub.name}
-                className="p-4 rounded-2xl border border-slate-200/80 bg-slate-50/60 hover:bg-white hover:border-indigo-200 transition-all flex flex-col justify-between space-y-3"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <div
-                      className="w-8 h-8 rounded-xl text-white flex items-center justify-center font-bold shadow-2xs"
-                      style={{ backgroundColor: sub.color }}
-                    >
-                      {sub.name === "Physics" ? (
-                        <Atom className="w-4 h-4" />
-                      ) : sub.name === "Chemistry" ? (
-                        <FlaskConical className="w-4 h-4" />
-                      ) : sub.name === "Biology" ? (
-                        <Dna className="w-4 h-4" />
-                      ) : (
-                        <Calculator className="w-4 h-4" />
-                      )}
+        {/* Collapsible Faculty & Class Info */}
+        {showFacultySection && (
+          <div className="mt-4 pt-4 border-t border-slate-100 animate-in fade-in-50 duration-200 space-y-3">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
+              <span>Academic Curriculum & Assigned Faculty for {studentGrade}</span>
+              <span className="text-indigo-600 font-bold">{streamSubjects.length} Core Subjects</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {streamSubjects.map((sub) => {
+                const assignment = facultyAssignments.find(
+                  (a) => a.subject?.name?.toLowerCase() === sub.name.toLowerCase()
+                );
+                return (
+                  <div
+                    key={sub.name}
+                    className="p-3 rounded-2xl border border-slate-200/80 bg-slate-50/60 flex items-center justify-between text-xs"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-7 h-7 rounded-lg text-white flex items-center justify-center font-bold text-xs shrink-0"
+                        style={{ backgroundColor: sub.color }}
+                      >
+                        {sub.name === "Physics" ? (
+                          <Atom className="w-3.5 h-3.5" />
+                        ) : sub.name === "Chemistry" ? (
+                          <FlaskConical className="w-3.5 h-3.5" />
+                        ) : sub.name === "Biology" ? (
+                          <Dna className="w-3.5 h-3.5" />
+                        ) : (
+                          <Calculator className="w-3.5 h-3.5" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-800 text-xs">{sub.name}</div>
+                        <div className="text-[10px] text-slate-400">{sub.badge}</div>
+                      </div>
                     </div>
                     <div>
-                      <h3 className="font-bold text-slate-900 text-xs">{sub.name}</h3>
-                      <span className="text-[10px] font-semibold text-slate-500">
-                        {studentGrade}
-                      </span>
+                      {assignment ? (
+                        <div className="flex items-center gap-1 font-bold text-slate-800 text-[11px]">
+                          <UserCheck className="w-3 h-3 text-emerald-600" />
+                          <span>{assignment.teacher?.name}</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                          In Assignment
+                        </span>
+                      )}
                     </div>
                   </div>
-
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white text-slate-600 border border-slate-200 shadow-2xs">
-                    {sub.badge}
-                  </span>
-                </div>
-
-                <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs">
-                  <span className="text-[11px] text-slate-500 font-medium">Faculty:</span>
-                  {assignment ? (
-                    <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
-                      <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>{assignment.teacher?.name}</span>
-                    </div>
-                  ) : (
-                    <span className="text-[11px] text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                      In Assignment
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Overdue Warning Alert (if any) */}
+      {/* OVERDUE HOMEWORK WARNING (if any) */}
       {overdueHomework.length > 0 && (
-        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-5 h-5" />
+        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-4 h-4" />
             </div>
-            <div>
-              <h4 className="text-xs font-bold text-rose-900">
-                {overdueHomework.length} Overdue Homework Assignment{overdueHomework.length > 1 ? "s" : ""}
+            <div className="min-w-0">
+              <h4 className="font-bold text-rose-900 truncate">
+                {overdueHomework.length} Overdue Assignment{overdueHomework.length > 1 ? "s" : ""}
               </h4>
-              <p className="text-xs text-rose-700 mt-0.5">
-                Please prioritize: {overdueHomework[0].exercise.name} ({overdueHomework[0].book.name}) was due on{" "}
-                {new Date(overdueHomework[0].dueDate).toLocaleDateString()}.
+              <p className="text-[11px] text-rose-700 truncate">
+                {overdueHomework[0].exercise.name} ({overdueHomework[0].book.name}) was due on{" "}
+                {new Date(overdueHomework[0].dueDate).toLocaleDateString([], { month: "short", day: "numeric" })}
               </p>
             </div>
           </div>
           <button
             onClick={() => handleOpenProgress(overdueHomework[0])}
-            className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shrink-0 transition-colors"
+            className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shrink-0 transition-colors cursor-pointer text-xs"
           >
-            Update Now
+            Update
           </button>
         </div>
       )}
 
-      {/* TODAY'S PRIORITY HOMEWORK CARD (Requirement 25) */}
-      {todayHomework.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-indigo-600" /> Today's Homework
-            </h2>
-            <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
-              Due Today
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {todayHomework.map((hw) => (
-              <div
-                key={hw.id}
-                className="p-5 bg-white rounded-3xl border-2 border-indigo-500/40 shadow-md shadow-indigo-500/5 hover:border-indigo-600 transition-all flex flex-col justify-between space-y-4"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <span
-                        className="px-2 py-0.5 rounded-md text-[11px] font-bold text-white"
-                        style={{ backgroundColor: hw.subject.color }}
-                      >
-                        {hw.subject.name} {hw.subject.classGrade ? `• ${hw.subject.classGrade}` : ""}
-                      </span>
-                      <h3 className="text-base font-bold text-slate-900 mt-2">
-                        {hw.book.name} — Chapter {hw.chapter.chapterNumber}
-                      </h3>
-                      <p className="text-xs font-semibold text-indigo-700">
-                        {hw.exercise.name} ({hw.totalQuestions} Questions)
-                      </p>
-                    </div>
-
-                    <span className="px-2 py-1 text-[10px] font-extrabold uppercase rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
-                      Due Today
-                    </span>
-                  </div>
-
-                  {/* Progress bar */}
-                  <div className="mt-4 space-y-1.5">
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                      <span>
-                        {hw.questionsCompleted} / {hw.totalQuestions} Questions Completed
-                      </span>
-                      <span className="text-indigo-600">{hw.progressPercentage}%</span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                      <div
-                        className="bg-indigo-600 h-full rounded-full transition-all duration-300"
-                        style={{ width: `${hw.progressPercentage}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                  <button
-                    onClick={() => handleOpenProgress(hw)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all shadow-xs"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    <span>UPDATE PROGRESS</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleOpenProof(hw)}
-                    className="p-2 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors"
-                    title="Upload Proof / Solution Photo"
-                  >
-                    <Upload className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Navigation Tabs (Homework List, Academic Books, Calendar) */}
+      {/* TOP NAVIGATION: MY BOOKS FIRST */}
+      {/* Order: 1. My Books, 2. Homework, 3. Calendar */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setActiveTab("homework")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === "homework"
-                ? "bg-slate-900 text-white shadow-xs"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            <span>Homework ({homeworkList.length})</span>
-          </button>
-
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* TAB 1: MY BOOKS (First & Default) */}
           <button
             onClick={() => setActiveTab("books")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === "books"
                 ? "bg-slate-900 text-white shadow-xs"
                 : "text-slate-600 hover:bg-slate-100"
@@ -543,9 +575,23 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
             <span>My Books ({studentBooks.length})</span>
           </button>
 
+          {/* TAB 2: HOMEWORK */}
+          <button
+            onClick={() => setActiveTab("homework")}
+            className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "homework"
+                ? "bg-slate-900 text-white shadow-xs"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            <span>Homework ({homeworkList.length})</span>
+          </button>
+
+          {/* TAB 3: CALENDAR */}
           <button
             onClick={() => setActiveTab("calendar")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === "calendar"
                 ? "bg-slate-900 text-white shadow-xs"
                 : "text-slate-600 hover:bg-slate-100"
@@ -555,9 +601,496 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
             <span>Calendar</span>
           </button>
         </div>
+
+        {activeTab === "books" && studentBooks.length > 0 && (
+          <div className="hidden sm:flex items-center gap-1.5">
+            <button
+              onClick={expandAllBooks}
+              className="text-[11px] font-bold text-slate-600 hover:text-indigo-600 px-2.5 py-1 rounded-lg hover:bg-slate-100 transition-colors"
+              title="Expand all books"
+            >
+              Expand All
+            </button>
+            <span className="text-slate-300">|</span>
+            <button
+              onClick={compressAllBooks}
+              className="text-[11px] font-bold text-slate-600 hover:text-indigo-600 px-2.5 py-1 rounded-lg hover:bg-slate-100 transition-colors"
+              title="Compress all books"
+            >
+              Compress All
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* TAB 1: HOMEWORK LIST */}
+      {/* ============================================================== */}
+      {/* TAB 1: MY BOOKS & PROGRESSIVE EXPANDABLE HIERARCHY */}
+      {/* ============================================================== */}
+      {activeTab === "books" && (
+        <div className="space-y-3.5">
+          {loading ? (
+            <div className="py-16 text-center text-xs text-slate-400 bg-white rounded-3xl border border-slate-200 p-8 space-y-2">
+              <Loader2 className="w-6 h-6 animate-spin text-indigo-600 mx-auto" />
+              <p>Loading assigned books...</p>
+            </div>
+          ) : studentBooks.length === 0 ? (
+            <div className="py-16 text-center bg-white rounded-3xl border border-slate-200 p-8 space-y-2">
+              <BookOpen className="w-10 h-10 text-slate-300 mx-auto" />
+              <h3 className="text-sm font-bold text-slate-800">No Books Assigned</h3>
+              <p className="text-xs text-slate-500">
+                You haven't been assigned any books yet. Your faculty will assign curriculum modules soon.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {studentBooks.map((sb) => {
+                const b = sb.book;
+                // Requirement: All books collapsed by default!
+                const isBookExpanded = Boolean(expandedBooks[sb.id]);
+                const isTrustedForBook = Boolean(sb.isTrustedForConfig || currentUser?.role === "ADMIN");
+
+                const totalExercises =
+                  b.chapters?.reduce(
+                    (sum: number, ch: any) => sum + (ch.exercises?.length || 0),
+                    0
+                  ) || 0;
+
+                let completedExercisesInBook = 0;
+                b.chapters?.forEach((ch: any) => {
+                  ch.exercises?.forEach((ex: any) => {
+                    const hw = homeworkList.find((h) => h.exerciseId === ex.id);
+                    if (hw?.exerciseStatus === "COMPLETED") completedExercisesInBook++;
+                  });
+                });
+
+                const bookCompletionRate =
+                  totalExercises > 0
+                    ? Math.round((completedExercisesInBook / totalExercises) * 100)
+                    : 0;
+
+                return (
+                  <div
+                    key={sb.id}
+                    className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs hover:border-slate-300 transition-all overflow-hidden"
+                  >
+                    {/* COLLAPSED BOOK HEADER ROW (Click to toggle expansion) */}
+                    <div
+                      onClick={() => toggleBookExpansion(sb.id)}
+                      className={`p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 cursor-pointer transition-colors ${
+                        isBookExpanded ? "bg-slate-50/70 border-b border-slate-200/80" : "hover:bg-slate-50/50"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3.5 min-w-0">
+                        {/* Subject Badge Icon */}
+                        <div
+                          className="w-11 h-12 rounded-2xl text-white font-extrabold flex items-center justify-center shrink-0 shadow-2xs mt-0.5"
+                          style={{ backgroundColor: b.subject?.color || "#4F46E5" }}
+                        >
+                          <BookOpen className="w-5 h-5" />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className="px-2 py-0.5 rounded-md text-[10px] font-extrabold text-white"
+                              style={{ backgroundColor: b.subject?.color || "#4F46E5" }}
+                            >
+                              {b.subject?.name || "Subject"} {b.classGrade ? `• ${b.classGrade}` : ""}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                              {b.curriculumType || b.exam || "Curriculum"}
+                            </span>
+                            {isTrustedForBook && (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                                <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                <span>Trusted Config</span>
+                              </span>
+                            )}
+                          </div>
+
+                          <h3 className="text-sm sm:text-base font-extrabold text-slate-900 mt-1 truncate">
+                            {b.name}
+                          </h3>
+
+                          <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+                            {b.publisher || b.author || "Publisher Module"} • {b.chapters?.length || 0} Chapters • {totalExercises} Exercises
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Right Status & Expand Button */}
+                      <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                        <div className="flex flex-col items-start sm:items-end">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                            <span>{completedExercisesInBook}/{totalExercises} Done</span>
+                            <span className="text-indigo-600">({bookCompletionRate}%)</span>
+                          </div>
+                          <div className="w-24 bg-slate-200/80 h-1.5 rounded-full overflow-hidden mt-1">
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${
+                                bookCompletionRate === 100 ? "bg-emerald-500" : "bg-indigo-600"
+                              }`}
+                              style={{ width: `${bookCompletionRate}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          className={`p-2 rounded-xl border text-xs font-bold flex items-center gap-1 transition-all ${
+                            isBookExpanded
+                              ? "bg-slate-200/70 border-slate-300 text-slate-800"
+                              : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
+                          }`}
+                        >
+                          {isBookExpanded ? (
+                            <>
+                              <ChevronUp className="w-4 h-4" />
+                              <span className="text-[11px] hidden sm:inline">Collapse</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="w-4 h-4" />
+                              <span className="text-[11px] hidden sm:inline">Chapters</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* EXPANDED CHAPTERS LIST */}
+                    {isBookExpanded && (
+                      <div className="p-4 sm:p-5 space-y-3 bg-white animate-in fade-in-50 duration-200">
+                        <div className="flex items-center justify-between text-xs pb-1">
+                          <span className="font-extrabold uppercase tracking-wider text-slate-400 text-[10px]">
+                            Chapters ({b.chapters?.length || 0})
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-medium">
+                            Tap chapter to view & update exercises
+                          </span>
+                        </div>
+
+                        {b.chapters && b.chapters.length > 0 ? (
+                          <div className="space-y-2.5">
+                            {b.chapters.map((ch: any) => {
+                              // Requirement: All chapters collapsed by default inside book!
+                              const isChapterExpanded = Boolean(expandedChapters[ch.id]);
+                              const exercises = ch.exercises || [];
+                              const totalExCount = exercises.length;
+
+                              const completedExCount = exercises.filter((ex: any) => {
+                                const hw = homeworkList.find((h) => h.exerciseId === ex.id);
+                                return hw?.exerciseStatus === "COMPLETED";
+                              }).length;
+
+                              const inProgressExCount = exercises.filter((ex: any) => {
+                                const hw = homeworkList.find((h) => h.exerciseId === ex.id);
+                                return hw?.exerciseStatus === "IN_PROGRESS";
+                              }).length;
+
+                              const isChapterCompleted = totalExCount > 0 && completedExCount === totalExCount;
+                              const isChapterPartial = (completedExCount > 0 && completedExCount < totalExCount) || inProgressExCount > 0;
+
+                              return (
+                                <div
+                                  key={ch.id}
+                                  className={`rounded-2xl border transition-all ${
+                                    isChapterExpanded
+                                      ? "border-slate-300 bg-slate-50/50 shadow-2xs"
+                                      : "border-slate-200/80 bg-slate-50/40 hover:bg-slate-50/80"
+                                  }`}
+                                >
+                                  {/* CHAPTER HEADER (Click to toggle exercises) */}
+                                  <div
+                                    onClick={() => toggleChapterExpansion(ch.id)}
+                                    className="p-3.5 flex items-center justify-between gap-3 cursor-pointer"
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center font-extrabold text-[11px] text-slate-700 shrink-0">
+                                        {ch.chapterNumber}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <h4 className="text-xs font-bold text-slate-900 truncate">
+                                          {ch.name}
+                                        </h4>
+                                        <p className="text-[10px] text-slate-500 font-medium">
+                                          {totalExCount} Exercises • {completedExCount} Completed
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      {/* Chapter Status Badge */}
+                                      <span
+                                        className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                                          isChapterCompleted
+                                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                            : isChapterPartial
+                                            ? "bg-amber-50 text-amber-700 border-amber-200"
+                                            : "bg-slate-100 text-slate-600 border-slate-200"
+                                        }`}
+                                      >
+                                        {isChapterCompleted
+                                          ? "Completed"
+                                          : isChapterPartial
+                                          ? `${completedExCount}/${totalExCount} Done`
+                                          : "Not Started"}
+                                      </span>
+
+                                      <div className="w-6 h-6 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500">
+                                        {isChapterExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* EXPANDED EXERCISES LIST */}
+                                  {isChapterExpanded && (
+                                    <div className="p-3.5 pt-0 border-t border-slate-200/60 mt-1 space-y-2 animate-in fade-in-50 duration-150">
+                                      <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold pt-2">
+                                        <span>Available Exercises ({exercises.length})</span>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenBookExerciseProgress(b, ch, null);
+                                          }}
+                                          className="text-indigo-600 hover:text-indigo-700 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                                        >
+                                          <CheckCircle2 className="w-3 h-3" />
+                                          <span>Batch Chapter Progress</span>
+                                        </button>
+                                      </div>
+
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {exercises.map((ex: any) => {
+                                          const hw = homeworkList.find((h) => h.exerciseId === ex.id);
+                                          const isDone = hw?.exerciseStatus === "COMPLETED";
+                                          const isInProgress = hw?.exerciseStatus === "IN_PROGRESS";
+                                          const totalQ = ex.totalQuestions || hw?.totalQuestions || 10;
+                                          const doneQ = hw?.questionsCompleted || 0;
+                                          const remainingQ = Math.max(0, totalQ - doneQ);
+
+                                          const isEditingThisCount = editingExerciseCount[ex.id] !== undefined;
+                                          const isSavingThisCount = Boolean(isSavingQuestionCount[ex.id]);
+                                          const currentEditVal = editingExerciseCount[ex.id] ?? totalQ;
+                                          const feedback = countFeedback?.exerciseId === ex.id ? countFeedback : null;
+
+                                          return (
+                                            <div
+                                              key={ex.id}
+                                              className={`p-3 rounded-2xl border transition-all ${
+                                                isDone
+                                                  ? "bg-emerald-50/40 border-emerald-200/90"
+                                                  : isInProgress
+                                                  ? "bg-amber-50/40 border-amber-200/90"
+                                                  : "bg-white border-slate-200 hover:border-slate-300"
+                                              }`}
+                                            >
+                                              <div className="flex items-start justify-between gap-2">
+                                                <div className="flex items-start gap-2.5 min-w-0">
+                                                  {/* Quick Toggle Done */}
+                                                  <button
+                                                    type="button"
+                                                    title={isDone ? "Click to reset" : "Click to mark completed"}
+                                                    onClick={(e) => handleQuickToggleExercise(e, b, ch, ex)}
+                                                    className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors mt-0.5 border cursor-pointer ${
+                                                      isDone
+                                                        ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700"
+                                                        : isInProgress
+                                                        ? "bg-amber-500 text-white border-amber-500 hover:bg-amber-600"
+                                                        : "bg-slate-50 border-slate-300 text-transparent hover:text-slate-400"
+                                                    }`}
+                                                  >
+                                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                                  </button>
+
+                                                  <div className="min-w-0">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                      <h5 className="text-xs font-bold text-slate-900 truncate">
+                                                        {ex.exerciseNumber ? `${ex.exerciseNumber} — ` : ""}{ex.name}
+                                                      </h5>
+                                                      <span
+                                                        className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-md ${
+                                                          isDone
+                                                            ? "bg-emerald-100 text-emerald-800"
+                                                            : isInProgress
+                                                            ? "bg-amber-100 text-amber-800"
+                                                            : "bg-slate-100 text-slate-600"
+                                                        }`}
+                                                      >
+                                                        {isDone ? "Completed" : isInProgress ? "In Progress" : "Not Started"}
+                                                      </span>
+                                                    </div>
+
+                                                    <div className="text-[11px] text-slate-500 font-medium mt-0.5 flex items-center gap-2 flex-wrap">
+                                                      <span className="font-bold text-slate-700">{totalQ} Questions</span>
+                                                      <span>•</span>
+                                                      <span className="text-emerald-700 font-semibold">{doneQ} Completed</span>
+                                                      <span>•</span>
+                                                      <span className="text-slate-500 font-semibold">{remainingQ} Remaining</span>
+                                                    </div>
+                                                  </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                  {/* Trusted Student Edit Question Count Button */}
+                                                  {isTrustedForBook && !isEditingThisCount && (
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => handleStartEditCount(ex)}
+                                                      className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition-colors cursor-pointer"
+                                                      title="Edit Question Count (Trusted Student / Admin)"
+                                                    >
+                                                      <Edit3 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                  )}
+
+                                                  {/* Update Progress Button */}
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleOpenBookExerciseProgress(b, ch, ex)}
+                                                    className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white text-slate-700 border border-slate-200 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-all cursor-pointer shadow-2xs"
+                                                  >
+                                                    Update
+                                                  </button>
+                                                </div>
+                                              </div>
+
+                                              {/* TRUSTED STUDENT INLINE EDIT QUESTION COUNT CONTROL */}
+                                              {isEditingThisCount && (
+                                                <div className="mt-2.5 pt-2.5 border-t border-slate-200/80 space-y-2 bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100 animate-in fade-in-50 duration-150">
+                                                  <div className="flex items-center justify-between text-[11px]">
+                                                    <span className="font-extrabold text-indigo-950 flex items-center gap-1">
+                                                      <ShieldCheck className="w-3 h-3 text-indigo-600" />
+                                                      Configure Total Questions:
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400">
+                                                      Applies to all students
+                                                    </span>
+                                                  </div>
+
+                                                  <div className="flex items-center gap-2">
+                                                    <button
+                                                      type="button"
+                                                      disabled={isSavingThisCount || currentEditVal <= (sb.minQuestions || 1)}
+                                                      onClick={() =>
+                                                        handleChangeCountValue(
+                                                          ex.id,
+                                                          currentEditVal - 1,
+                                                          sb.minQuestions || 1,
+                                                          sb.maxQuestions || 500
+                                                        )
+                                                      }
+                                                      className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
+                                                    >
+                                                      <Minus className="w-3 h-3" />
+                                                    </button>
+
+                                                    <input
+                                                      type="number"
+                                                      min={sb.minQuestions || 1}
+                                                      max={sb.maxQuestions || 500}
+                                                      value={currentEditVal}
+                                                      disabled={isSavingThisCount}
+                                                      onChange={(e) =>
+                                                        handleChangeCountValue(
+                                                          ex.id,
+                                                          parseInt(e.target.value, 10) || (sb.minQuestions || 1),
+                                                          sb.minQuestions || 1,
+                                                          sb.maxQuestions || 500
+                                                        )
+                                                      }
+                                                      className="w-16 text-center text-xs font-black bg-white border border-slate-300 rounded-lg py-1 text-slate-900 focus:outline-hidden focus:border-indigo-600"
+                                                    />
+
+                                                    <button
+                                                      type="button"
+                                                      disabled={isSavingThisCount || currentEditVal >= (sb.maxQuestions || 500)}
+                                                      onClick={() =>
+                                                        handleChangeCountValue(
+                                                          ex.id,
+                                                          currentEditVal + 1,
+                                                          sb.minQuestions || 1,
+                                                          sb.maxQuestions || 500
+                                                        )
+                                                      }
+                                                      className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
+                                                    >
+                                                      <Plus className="w-3 h-3" />
+                                                    </button>
+
+                                                    <button
+                                                      type="button"
+                                                      disabled={isSavingThisCount}
+                                                      onClick={() =>
+                                                        handleSaveExerciseQuestionCount(
+                                                          ex,
+                                                          b,
+                                                          sb.minQuestions || 1,
+                                                          sb.maxQuestions || 500
+                                                        )
+                                                      }
+                                                      className="flex items-center gap-1 px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 ml-auto"
+                                                    >
+                                                      {isSavingThisCount ? (
+                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                      ) : (
+                                                        <Save className="w-3 h-3" />
+                                                      )}
+                                                      <span>Save</span>
+                                                    </button>
+
+                                                    <button
+                                                      type="button"
+                                                      disabled={isSavingThisCount}
+                                                      onClick={() => handleCancelEditCount(ex.id)}
+                                                      className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+                                                    >
+                                                      <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                  </div>
+
+                                                  {feedback && (
+                                                    <div
+                                                      className={`text-[10px] font-bold px-2 py-1 rounded-md ${
+                                                        feedback.type === "success"
+                                                          ? "bg-emerald-100 text-emerald-800"
+                                                          : "bg-rose-100 text-rose-800"
+                                                      }`}
+                                                    >
+                                                      {feedback.text}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="py-6 text-center text-xs text-slate-400">
+                            No chapters registered for this book yet.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* TAB 2: HOMEWORK LIST */}
+      {/* ============================================================== */}
       {activeTab === "homework" && (
         <div className="space-y-4">
           {/* Filters Bar */}
@@ -574,7 +1107,7 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
                 <button
                   key={s.id}
                   onClick={() => setStatusFilter(s.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     statusFilter === s.id
                       ? "bg-indigo-600 text-white shadow-xs"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -631,9 +1164,9 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
                       <div className="flex items-start justify-between gap-2">
                         <span
                           className="px-2 py-0.5 rounded text-[10px] font-bold text-white"
-                          style={{ backgroundColor: hw.subject.color }}
+                          style={{ backgroundColor: hw.subject?.color || "#4F46E5" }}
                         >
-                          {hw.subject.name} {hw.subject.classGrade ? `• ${hw.subject.classGrade}` : ""}
+                          {hw.subject?.name} {hw.subject?.classGrade ? `• ${hw.subject.classGrade}` : ""}
                         </span>
 
                         <span
@@ -659,13 +1192,13 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
 
                       {/* Content Titles */}
                       <h4 className="text-sm font-bold text-slate-900 mt-2.5 line-clamp-1">
-                        {hw.book.name}
+                        {hw.book?.name}
                       </h4>
                       <p className="text-xs text-slate-500">
-                        Ch {hw.chapter.chapterNumber} — {hw.chapter.name}
+                        Ch {hw.chapter?.chapterNumber} — {hw.chapter?.name}
                       </p>
                       <p className="text-xs font-bold text-indigo-700 mt-1">
-                        {hw.exercise.name} ({hw.totalQuestions} Questions)
+                        {hw.exercise?.name} ({hw.totalQuestions} Questions)
                       </p>
 
                       {/* Progress Bar & Details */}
@@ -705,7 +1238,7 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
                     <div className="flex items-center gap-2 pt-1">
                       <button
                         onClick={() => handleOpenProgress(hw)}
-                        className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 ${
+                        className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
                           isCompleted
                             ? "bg-slate-100 hover:bg-slate-200 text-slate-700"
                             : "bg-indigo-600 hover:bg-indigo-700 text-white"
@@ -717,7 +1250,7 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
 
                       <button
                         onClick={() => handleOpenProof(hw)}
-                        className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors"
+                        className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors cursor-pointer"
                         title="Upload Proof / Photos"
                       >
                         <Upload className="w-4 h-4" />
@@ -731,323 +1264,9 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
         </div>
       )}
 
-      {/* TAB 2: MY BOOKS & CHAPTERS EXPLORER (Requirements 27-29) */}
-      {activeTab === "books" && (
-        <div className="space-y-6">
-          {/* Top Control Bar: Expand/Compress All */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-3xl border border-slate-200/90 shadow-2xs">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
-                <BookOpen className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-xs font-extrabold text-slate-900">
-                  My Enrolled Books ({studentBooks.length})
-                </h3>
-                <p className="text-[11px] text-slate-500 font-medium">
-                  Expand or compress books to view chapter breakdowns and update question progress
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={expandAllBooks}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all cursor-pointer shadow-2xs"
-                title="Expand all books and chapters"
-              >
-                <Maximize2 className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Expand All Books</span>
-              </button>
-              <button
-                onClick={compressAllBooks}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all cursor-pointer shadow-2xs"
-                title="Compress all books to compact summary"
-              >
-                <Minimize2 className="w-3.5 h-3.5 text-slate-500" />
-                <span>Compress All Books</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6">
-            {studentBooks.map((sb) => {
-              const b = sb.book;
-              const isBookExpanded = expandedBooks[sb.id] !== false; // Default expanded unless compressed
-              const totalExercises = b.chapters?.reduce(
-                (sum: number, ch: any) => sum + (ch.exercises?.length || 0),
-                0
-              ) || 0;
-
-              // Calculate completed exercises count in this book
-              let completedExercisesInBook = 0;
-              b.chapters?.forEach((ch: any) => {
-                ch.exercises?.forEach((ex: any) => {
-                  const hw = homeworkList.find((h) => h.exerciseId === ex.id);
-                  if (hw?.exerciseStatus === "COMPLETED") completedExercisesInBook++;
-                });
-              });
-
-              const bookCompletionRate = totalExercises > 0
-                ? Math.round((completedExercisesInBook / totalExercises) * 100)
-                : 0;
-
-              return (
-                <div
-                  key={sb.id}
-                  className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6 sm:p-7 space-y-6 transition-all"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-                    <div className="flex items-start gap-3.5">
-                      <div
-                        className="w-14 h-16 rounded-2xl text-white font-bold flex items-center justify-center shrink-0 shadow-sm"
-                        style={{ backgroundColor: b.subject.color }}
-                      >
-                        <BookOpen className="w-7 h-7" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="px-2.5 py-0.5 rounded-md text-[10px] font-extrabold text-white inline-block"
-                            style={{ backgroundColor: b.subject.color }}
-                          >
-                            {b.subject.name} {b.classGrade ? `• ${b.classGrade}` : ""}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                            {b.curriculumType || "NEET"}
-                          </span>
-                        </div>
-                        <h3 className="text-lg font-extrabold text-slate-900 mt-1">{b.name}</h3>
-                        <p className="text-xs text-slate-500 font-medium">
-                          {b.chapters?.length || 0} Chapters • {totalExercises} Exercises • Author: {b.author || "Narendra Avasthi"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2.5 self-start sm:self-center flex-wrap">
-                      {/* Overall Book Progress Badge */}
-                      <span className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs font-bold text-slate-700">
-                        {completedExercisesInBook}/{totalExercises} Exercises Done ({bookCompletionRate}%)
-                      </span>
-
-                      {/* Expand / Compress Book Button */}
-                      <button
-                        onClick={() => toggleBookExpansion(sb.id)}
-                        className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-bold transition-all shadow-xs cursor-pointer ${
-                          isBookExpanded
-                            ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
-                            : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/10"
-                        }`}
-                      >
-                        {isBookExpanded ? (
-                          <>
-                            <ChevronUp className="w-4 h-4" />
-                            <span>Compress Book</span>
-                          </>
-                        ) : (
-                          <>
-                            <ChevronDown className="w-4 h-4" />
-                            <span>Expand Book ({b.chapters?.length || 0} Chapters)</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Compressed Book Summary View */}
-                  {!isBookExpanded && (
-                    <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="space-y-1.5 flex-1">
-                        <div className="flex items-center justify-between text-xs font-semibold text-slate-600 max-w-md">
-                          <span>Overall Book Completion</span>
-                          <span className="font-extrabold text-indigo-600">{bookCompletionRate}%</span>
-                        </div>
-                        <div className="w-full max-w-md bg-slate-200/80 h-2 rounded-full overflow-hidden">
-                          <div
-                            className="bg-indigo-600 h-full rounded-full transition-all duration-300"
-                            style={{ width: `${bookCompletionRate}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => toggleBookExpansion(sb.id)}
-                        className="px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 self-start sm:self-center"
-                      >
-                        <ChevronDown className="w-4 h-4" />
-                        <span>Expand Chapters & Exercises</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Expanded Chapter-wise progress list */}
-                  {isBookExpanded && (
-                    <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-extrabold text-slate-400 uppercase tracking-wider block">
-                        Chapters & Exercises:
-                      </label>
-                      <span className="text-[11px] text-slate-500 font-medium">
-                        Click on any exercise to update questions completed till
-                      </span>
-                    </div>
-
-                    <div className="space-y-3.5">
-                      {b.chapters?.map((ch: any) => {
-                        const exercises = ch.exercises || [];
-                        const completedExCount = exercises.filter((ex: any) => {
-                          const hw = homeworkList.find((h) => h.exerciseId === ex.id);
-                          return hw?.exerciseStatus === "COMPLETED";
-                        }).length;
-
-                        const totalExCount = exercises.length;
-                        const inProgressExCount = exercises.filter((ex: any) => {
-                          const hw = homeworkList.find((h) => h.exerciseId === ex.id);
-                          return hw?.exerciseStatus === "IN_PROGRESS";
-                        }).length;
-
-                        const isChapterCompleted = totalExCount > 0 && completedExCount === totalExCount;
-                        const isChapterPartial = (completedExCount > 0 && completedExCount < totalExCount) || inProgressExCount > 0;
-
-                        return (
-                          <div
-                            key={ch.id}
-                            className="bg-slate-50/70 rounded-2xl border border-slate-200/80 p-4 sm:p-5 space-y-3.5 transition-all hover:border-slate-300"
-                          >
-                            {/* Chapter Header */}
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-200/60">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <h4 className="text-sm font-extrabold text-slate-900">
-                                    Chapter {ch.chapterNumber}: {ch.name}
-                                  </h4>
-
-                                  {/* Chapter Status Badge */}
-                                  <span
-                                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
-                                      isChapterCompleted
-                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                        : isChapterPartial
-                                        ? "bg-amber-50 text-amber-700 border-amber-200"
-                                        : "bg-slate-100 text-slate-600 border-slate-200"
-                                    }`}
-                                  >
-                                    {isChapterCompleted
-                                      ? "✅ Completed (100%)"
-                                      : isChapterPartial
-                                      ? `⏳ Partially Completed (${completedExCount}/${totalExCount} Done)`
-                                      : "⚪ Not Started"}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-slate-500">
-                                  {totalExCount} Exercises • {completedExCount} Completed
-                                </p>
-                              </div>
-
-                              {/* Chapter-Level Action Button */}
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenBookExerciseProgress(b, ch, null)}
-                                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 text-slate-700 border border-slate-200 transition-all shadow-2xs flex items-center gap-1.5"
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
-                                  <span>Update Chapter Status</span>
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Exercises in this chapter */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                              {exercises.map((ex: any, idx: number) => {
-                                const hw = homeworkList.find((h) => h.exerciseId === ex.id);
-                                const isDone = hw?.exerciseStatus === "COMPLETED";
-                                const isInProgress = hw?.exerciseStatus === "IN_PROGRESS";
-                                const totalQ = ex.totalQuestions || hw?.totalQuestions || 10;
-                                const doneQ = hw?.questionsCompleted || 0;
-
-                                return (
-                                  <div
-                                    key={ex.id}
-                                    onClick={() => handleOpenBookExerciseProgress(b, ch, ex)}
-                                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 group ${
-                                      isDone
-                                        ? "bg-emerald-50/70 border-emerald-200 hover:border-emerald-300"
-                                        : isInProgress
-                                        ? "bg-amber-50/70 border-amber-200 hover:border-amber-300"
-                                        : "bg-white border-slate-200/80 hover:border-indigo-300 hover:shadow-xs"
-                                    }`}
-                                  >
-                                    <div className="flex items-start gap-2.5 min-w-0">
-                                      {/* Quick Click Toggle */}
-                                      <button
-                                        type="button"
-                                        title={isDone ? "Click to reset" : "Click to mark completed"}
-                                        onClick={(e) => handleQuickToggleExercise(e, b, ch, ex)}
-                                        className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors mt-0.5 border ${
-                                          isDone
-                                            ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700"
-                                            : isInProgress
-                                            ? "bg-amber-500 text-white border-amber-500 hover:bg-amber-600"
-                                            : "bg-slate-50 border-slate-300 text-transparent hover:text-slate-400"
-                                        }`}
-                                      >
-                                        <CheckCircle2 className="w-4 h-4" />
-                                      </button>
-
-                                      <div className="min-w-0">
-                                        <h5 className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
-                                          {ex.name}
-                                        </h5>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                          <span
-                                            className={`text-[10px] font-extrabold ${
-                                              isDone
-                                                ? "text-emerald-700"
-                                                : isInProgress
-                                                ? "text-amber-700"
-                                                : "text-slate-500"
-                                            }`}
-                                          >
-                                            {isDone
-                                              ? `Completed (${totalQ}/${totalQ})`
-                                              : isInProgress
-                                              ? `Till Q${doneQ} of ${totalQ}`
-                                              : `Not Started (0/${totalQ})`}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    {/* Action Button */}
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleOpenBookExerciseProgress(b, ch, ex);
-                                      }}
-                                      className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white text-slate-700 border border-slate-200/90 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-all shadow-2xs shrink-0"
-                                    >
-                                      Update
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: CALENDAR VIEW (Requirement 40) */}
+      {/* ============================================================== */}
+      {/* TAB 3: CALENDAR VIEW */}
+      {/* ============================================================== */}
       {activeTab === "calendar" && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
           <div className="flex items-center justify-between">
@@ -1087,7 +1306,7 @@ export function StudentDashboard({ currentUser }: StudentDashboardProps) {
                       {d.toLocaleDateString([], { month: "short", day: "numeric", weekday: "short" })}
                     </span>
                     <h5 className="text-xs font-bold text-slate-900">
-                      {hw.subject.name} — {hw.exercise.name}
+                      {hw.subject?.name} — {hw.exercise?.name}
                     </h5>
                     <p className="text-[11px] text-slate-500">
                       {hw.questionsCompleted} / {hw.totalQuestions} Questions Completed

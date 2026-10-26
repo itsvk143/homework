@@ -146,30 +146,59 @@ export async function GET(req: NextRequest) {
 
     const whereClause: any = andClauses.length > 1 ? { AND: andClauses } : andClauses[0];
 
-    const books = await prisma.book.findMany({
-      where: whereClause,
-      include: {
-        subject: true,
-        chapters: {
-          where: { status: { not: "ARCHIVED" } },
-          orderBy: { chapterNumber: "asc" },
-          include: {
-            exercises: {
+    const isSummary = searchParams.get("summary") === "true";
+
+    const books = isSummary
+      ? await prisma.book.findMany({
+          where: whereClause,
+          select: {
+            id: true,
+            name: true,
+            bookCode: true,
+            exam: true,
+            curriculumType: true,
+            bookType: true,
+            branch: true,
+            classGrade: true,
+            displayOrder: true,
+            subjectId: true,
+            subject: { select: { id: true, name: true, color: true } },
+            chapters: {
               where: { status: { not: "ARCHIVED" } },
-              orderBy: { displayOrder: "asc" },
+              orderBy: { chapterNumber: "asc" },
+              select: { id: true, name: true, chapterNumber: true },
             },
           },
-        },
-        _count: {
-          select: { chapters: true, homeworks: true, studentBooks: true },
-        },
-      },
-      orderBy: [
-        { curriculumType: "asc" },
-        { classGrade: "asc" },
-        { displayOrder: "asc" },
-      ],
-    });
+          orderBy: [
+            { curriculumType: "asc" },
+            { classGrade: "asc" },
+            { displayOrder: "asc" },
+          ],
+        })
+      : await prisma.book.findMany({
+          where: whereClause,
+          include: {
+            subject: true,
+            chapters: {
+              where: { status: { not: "ARCHIVED" } },
+              orderBy: { chapterNumber: "asc" },
+              include: {
+                exercises: {
+                  where: { status: { not: "ARCHIVED" } },
+                  orderBy: { displayOrder: "asc" },
+                },
+              },
+            },
+            _count: {
+              select: { chapters: true, homeworks: true, studentBooks: true },
+            },
+          },
+          orderBy: [
+            { curriculumType: "asc" },
+            { classGrade: "asc" },
+            { displayOrder: "asc" },
+          ],
+        });
 
     return NextResponse.json({ books });
   } catch (error) {

@@ -28,10 +28,15 @@ function computeChapterMatrixData({
   now,
 }: ComputeParams) {
   const chapterExercises = (chapter.exercises || []).slice().sort((a: any, b: any) => {
-    const numA = parseFloat(a.exerciseNumber) || 0;
-    const numB = parseFloat(b.exerciseNumber) || 0;
-    if (numA !== numB) return numA - numB;
-    return (a.displayOrder || 0) - (b.displayOrder || 0);
+    if (a.displayOrder !== undefined && b.displayOrder !== undefined && a.displayOrder !== b.displayOrder) {
+      return (a.displayOrder || 0) - (b.displayOrder || 0);
+    }
+    const cleanA = a.exerciseNumber ? parseFloat(a.exerciseNumber.replace(/^[^\d.]*/, "")) : 0;
+    const cleanB = b.exerciseNumber ? parseFloat(b.exerciseNumber.replace(/^[^\d.]*/, "")) : 0;
+    if (!isNaN(cleanA) && !isNaN(cleanB) && cleanA !== cleanB) {
+      return cleanA - cleanB;
+    }
+    return (a.exerciseNumber || "").localeCompare(b.exerciseNumber || "", undefined, { numeric: true });
   });
 
   // Transform into Student Matrix Rows
@@ -120,27 +125,6 @@ function computeChapterMatrixData({
         if (!latestUpdate || updDate > latestUpdate) {
           latestUpdate = updDate;
         }
-      }
-
-      // Self-heal out-of-sync database assignment records in the background
-      if (
-        hw.id &&
-        (hw.totalQuestions !== total ||
-          (isMarkedCompleted && hw.questionsCompleted !== total) ||
-          hw.progressPercentage !== pct)
-      ) {
-        prisma.homeworkAssignment
-          .update({
-            where: { id: hw.id },
-            data: {
-              totalQuestions: total,
-              questionsCompleted: completed,
-              progressPercentage: pct,
-              exerciseStatus: effectiveExerciseStatus,
-              homeworkStatus: isCompleted ? "COMPLETED" : hw.homeworkStatus,
-            },
-          })
-          .catch((e: any) => console.error("Self-healing assignment sync error:", e));
       }
 
       return {
@@ -466,91 +450,6 @@ export async function GET(req: NextRequest) {
     // Map student ID to student records
     const studentUserMap = new Map<string, any>();
 
-    // 1. Fetch all students assigned to this teacher for this subject
-    // Match by subject name (e.g. "Chemistry", which covers NEET Dropper, Class 11, Class 12) or subjectId
-    if (teacherIdFilter) {
-      const assignments = await prisma.teacherStudentAssignment.findMany({
-        where: {
-          teacherId: teacherIdFilter,
-          status: "ACTIVE",
-          OR: [
-            { subjectId: selectedBook.subjectId },
-            { subject: { name: selectedBook.subject.name } },
-          ],
-        },
-        include: {
-          student: {
-            include: {
-              studentProfile: true,
-            },
-          },
-        },
-      });
-      for (const a of assignments) {
-        if (a.student) {
-          studentUserMap.set(a.student.id, a.student);
-        }
-      }
-    }
-
-    // 2. Also fetch students who have this book assigned in studentBook
-    const bookStudents = await prisma.studentBook.findMany({
-      where: {
-        bookId: selectedBook.id,
-        ...(teacherIdFilter
-          ? {
-              OR: [
-                { assignedByTeacherId: teacherIdFilter },
-                { studentId: { in: Array.from(studentUserMap.keys()) } },
-              ],
-            }
-          : {}),
-      },
-      include: {
-        student: {
-          include: {
-            studentProfile: true,
-          },
-        },
-      },
-    });
-
-    for (const sb of bookStudents) {
-      if (sb.student && !studentUserMap.has(sb.student.id)) {
-        studentUserMap.set(sb.student.id, sb.student);
-      }
-    }
-
-    // 3. Also include any student who has homework assignments in this book
-    const hwStudents = await prisma.homeworkAssignment.findMany({
-      where: {
-        bookId: selectedBook.id,
-        ...(teacherIdFilter
-          ? {
-              OR: [
-                { teacherId: teacherIdFilter },
-                { studentId: { in: Array.from(studentUserMap.keys()) } },
-              ],
-            }
-          : {}),
-      },
-      include: {
-        student: {
-          include: {
-            studentProfile: true,
-          },
-        },
-      },
-    });
-
-    for (const hw of hwStudents) {
-      if (hw.student && !studentUserMap.has(hw.student.id)) {
-        studentUserMap.set(hw.student.id, hw.student);
-      }
-    }
-
-    const assignedStudentIds = teacherIdFilter ? Array.from(studentUserMap.keys()) : null;
-
     const now = new Date();
 
     const bookMetadata = {
@@ -567,35 +466,84 @@ export async function GET(req: NextRequest) {
     // MODE A: ALL CHAPTERS
     // ============================================================
     if (mode === "all") {
-      // Fetch all homework in this book in a single query
-      const allHomeworkInBook = await prisma.homeworkAssignment.findMany({
-        where: {
-          bookId: selectedBook.id,
-          ...(assignedStudentIds !== null ? { studentId: { in: assignedStudentIds } } : {}),
-        },
-        include: {
-          student: {
-            include: {
-              studentProfile: true,
+      // Parallel fetch: teacher assignments, student books, and homework assignments
+      const [assignments, bookStudents, allHomeworkInBook] = await Promise.all([
+        teacherIdFilter
+          ? prisma.teacherStudentAssignment.findMany({
+              where: {
+                teacherId: teacherIdFilter,
+                status: "ACTIVE",
+                OR: [
+                  { subjectId: selectedBook.subjectId },
+                  { subject: { name: selectedBook.subject.name } },
+                ],
+              },
+              include: {
+                student: {
+                  include: {
+                    studentProfile: true,
+                  },
+                },
+              },
+            })
+          : Promise.resolve([]),
+        prisma.studentBook.findMany({
+          where: {
+            bookId: selectedBook.id,
+            ...(teacherIdFilter && !includeAllBookStudents
+              ? { assignedByTeacherId: teacherIdFilter }
+              : {}),
+          },
+          include: {
+            student: {
+              include: {
+                studentProfile: true,
+              },
             },
           },
-          progressHistory: {
-            orderBy: { createdAt: "desc" },
-            take: 5,
+        }),
+        prisma.homeworkAssignment.findMany({
+          where: {
+            bookId: selectedBook.id,
+            ...(teacherIdFilter && !includeAllBookStudents
+              ? { teacherId: teacherIdFilter }
+              : {}),
           },
-          submissions: {
-            orderBy: { submittedAt: "desc" },
-            take: 1,
+          include: {
+            student: {
+              include: {
+                studentProfile: true,
+              },
+            },
+            progressHistory: {
+              orderBy: { createdAt: "desc" },
+              take: 5,
+            },
+            submissions: {
+              orderBy: { submittedAt: "desc" },
+              take: 1,
+            },
           },
-        },
-      });
+        }),
+      ]);
+
+      for (const a of assignments) {
+        if (a.student) studentUserMap.set(a.student.id, a.student);
+      }
+      for (const sb of bookStudents) {
+        if (sb.student && !studentUserMap.has(sb.student.id)) {
+          studentUserMap.set(sb.student.id, sb.student);
+        }
+      }
+      for (const hw of allHomeworkInBook) {
+        if (hw.student && !studentUserMap.has(hw.student.id)) {
+          studentUserMap.set(hw.student.id, hw.student);
+        }
+      }
 
       // Group homework by chapterId -> studentId -> hw[]
       const chapterHwMap = new Map<string, Map<string, any[]>>();
       for (const hw of allHomeworkInBook) {
-        if (!studentUserMap.has(hw.studentId)) {
-          studentUserMap.set(hw.studentId, hw.student);
-        }
         if (!chapterHwMap.has(hw.chapterId)) {
           chapterHwMap.set(hw.chapterId, new Map());
         }
@@ -715,34 +663,83 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Find all homework in this specific chapter
-    const homeworkInChapter = await prisma.homeworkAssignment.findMany({
-      where: {
-        chapterId: selectedChapter.id,
-        ...(assignedStudentIds !== null ? { studentId: { in: assignedStudentIds } } : {}),
-      },
-      include: {
-        student: {
-          include: {
-            studentProfile: true,
+    // Parallel fetch: teacher assignments, student books, and homework for this chapter
+    const [assignments, bookStudents, homeworkInChapter] = await Promise.all([
+      teacherIdFilter
+        ? prisma.teacherStudentAssignment.findMany({
+            where: {
+              teacherId: teacherIdFilter,
+              status: "ACTIVE",
+              OR: [
+                { subjectId: selectedBook.subjectId },
+                { subject: { name: selectedBook.subject.name } },
+              ],
+            },
+            include: {
+              student: {
+                include: {
+                  studentProfile: true,
+                },
+              },
+            },
+          })
+        : Promise.resolve([]),
+      prisma.studentBook.findMany({
+        where: {
+          bookId: selectedBook.id,
+          ...(teacherIdFilter && !includeAllBookStudents
+            ? { assignedByTeacherId: teacherIdFilter }
+            : {}),
+        },
+        include: {
+          student: {
+            include: {
+              studentProfile: true,
+            },
           },
         },
-        progressHistory: {
-          orderBy: { createdAt: "desc" },
-          take: 5,
+      }),
+      prisma.homeworkAssignment.findMany({
+        where: {
+          chapterId: selectedChapter.id,
+          ...(teacherIdFilter && !includeAllBookStudents
+            ? { teacherId: teacherIdFilter }
+            : {}),
         },
-        submissions: {
-          orderBy: { submittedAt: "desc" },
-          take: 1,
+        include: {
+          student: {
+            include: {
+              studentProfile: true,
+            },
+          },
+          progressHistory: {
+            orderBy: { createdAt: "desc" },
+            take: 5,
+          },
+          submissions: {
+            orderBy: { submittedAt: "desc" },
+            take: 1,
+          },
         },
-      },
-    });
+      }),
+    ]);
+
+    for (const a of assignments) {
+      if (a.student) studentUserMap.set(a.student.id, a.student);
+    }
+    for (const sb of bookStudents) {
+      if (sb.student && !studentUserMap.has(sb.student.id)) {
+        studentUserMap.set(sb.student.id, sb.student);
+      }
+    }
+    for (const hw of homeworkInChapter) {
+      if (hw.student && !studentUserMap.has(hw.student.id)) {
+        studentUserMap.set(hw.student.id, hw.student);
+      }
+    }
 
     const studentAssignmentsMap = new Map<string, any[]>();
     for (const hw of homeworkInChapter) {
-      if (!studentUserMap.has(hw.studentId)) {
-        studentUserMap.set(hw.studentId, hw.student);
-      }
       if (!studentAssignmentsMap.has(hw.studentId)) {
         studentAssignmentsMap.set(hw.studentId, []);
       }

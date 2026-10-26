@@ -34,6 +34,8 @@ model User {
   progressHistory        HomeworkProgressHistory[]
   notifications          Notification[]
   auditLogs              AuditLog[]
+
+  @@index([role, status])
 }
 
 model StudentProfile {
@@ -46,6 +48,7 @@ model StudentProfile {
   schoolName   String   @default("LV INSTITUTE")
   parentName   String?
   parentPhone  String?
+  isTrustedStudent Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -104,6 +107,13 @@ model Book {
   chapters     Chapter[]
   studentBooks StudentBook[]
   homeworks    HomeworkAssignment[]
+  configAudits ExerciseConfigAudit[]
+
+  @@index([subjectId])
+  @@index([bookCode])
+  @@index([exam])
+  @@index([curriculumType])
+  @@index([status])
 }
 
 model Chapter {
@@ -120,6 +130,10 @@ model Chapter {
 
   exercises     Exercise[]
   homeworks     HomeworkAssignment[]
+  configAudits  ExerciseConfigAudit[]
+
+  @@index([bookId])
+  @@index([status])
 }
 
 model Exercise {
@@ -140,6 +154,10 @@ model Exercise {
 
   homeworks       HomeworkAssignment[]
   progressHistory HomeworkProgressHistory[]
+  configAudits    ExerciseConfigAudit[]
+
+  @@index([chapterId])
+  @@index([status])
 }
 
 model StudentBook {
@@ -151,8 +169,16 @@ model StudentBook {
   assignedByTeacherId String
   assignedBy          User     @relation("StudentBookTeacher", fields: [assignedByTeacherId], references: [id], onDelete: Restrict)
   assignedDate        DateTime @default(now())
+  isTrustedForConfig  Boolean  @default(false)
+  minQuestions        Int?     @default(1)
+  maxQuestions        Int?     @default(500)
+  trustedGrantedAt    DateTime?
+  trustedGrantedById  String?
 
   @@unique([studentId, bookId])
+  @@index([bookId])
+  @@index([studentId])
+  @@index([assignedByTeacherId])
 }
 
 model HomeworkAssignment {
@@ -196,6 +222,15 @@ model HomeworkAssignment {
   progressHistory    HomeworkProgressHistory[]
   submissions        HomeworkSubmission[]
   attachments        HomeworkAttachment[]
+
+  @@index([bookId])
+  @@index([chapterId])
+  @@index([exerciseId])
+  @@index([studentId])
+  @@index([teacherId])
+  @@index([dueDate])
+  @@index([homeworkStatus])
+  @@index([exerciseStatus])
 }
 
 model HomeworkProgressHistory {
@@ -214,6 +249,11 @@ model HomeworkProgressHistory {
   status               String
   notes                String?
   createdAt            DateTime           @default(now())
+
+  @@index([homeworkAssignmentId])
+  @@index([studentId])
+  @@index([exerciseId])
+  @@index([createdAt])
 }
 
 model HomeworkSubmission {
@@ -227,6 +267,10 @@ model HomeworkSubmission {
   reviewedAt           DateTime?
 
   attachments          HomeworkAttachment[]
+
+  @@index([homeworkAssignmentId])
+  @@index([submittedAt])
+  @@index([status])
 }
 
 model HomeworkAttachment {
@@ -246,7 +290,35 @@ model SystemSetting {
   id                           String   @id @default("default") @map("_id")
   requireTeacherVerification   Boolean  @default(true)
   sequentialExerciseCompletion Boolean  @default(false)
+  minExerciseQuestions         Int      @default(1)
+  maxExerciseQuestions         Int      @default(500)
   updatedAt                    DateTime @updatedAt
+}
+
+model ExerciseConfigAudit {
+  id            String    @id @default(cuid()) @map("_id")
+  exerciseId    String
+  chapterId     String
+  bookId        String
+  previousCount Int
+  newCount      Int
+  changedById   String
+  changedByRole String    // STUDENT or ADMIN
+  changedByName String?
+  timestamp     DateTime  @default(now())
+  status        String    @default("APPLIED") // APPLIED, REVERTED
+  revertedAt    DateTime?
+  revertedById  String?
+  note          String?
+
+  exercise      Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  chapter       Chapter   @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  book          Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([exerciseId])
+  @@index([bookId])
+  @@index([changedById])
+  @@index([timestamp])
 }
 
 model Notification {
@@ -286,4 +358,7 @@ model TeacherStudentAssignment {
   updatedAt    DateTime @updatedAt
 
   @@unique([teacherId, studentId, subjectId])
+  @@index([teacherId, status])
+  @@index([studentId, status])
+  @@index([subjectId])
 }

@@ -125,10 +125,9 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
     setLoading(true);
     try {
       const teacherParam = currentUser?.role === "TEACHER" ? `?teacherId=${currentUser.id}` : "";
-      const [stuRes, hwRes, hierRes] = await Promise.all([
+      const [stuRes, hwRes] = await Promise.all([
         fetch(`/api/students${teacherParam}`),
         fetch(`/api/homework${teacherParam}`),
-        fetch("/api/academic/hierarchy"),
       ]);
 
       if (stuRes.ok) {
@@ -139,10 +138,14 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
         const hData = await hwRes.json();
         setHomeworkList(hData.assignments || []);
       }
-      if (hierRes.ok) {
-        const hiData = await hierRes.json();
-        setHierarchy(hiData.subjects || []);
-      }
+
+      // Fetch hierarchy in background without delaying stats and default chapterProgress view
+      fetch("/api/academic/hierarchy")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((hiData) => {
+          if (hiData?.subjects) setHierarchy(hiData.subjects);
+        })
+        .catch((e) => console.error("Error loading hierarchy in background:", e));
     } catch (err) {
       console.error(err);
     } finally {

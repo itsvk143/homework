@@ -24,7 +24,9 @@ import {
   Maximize2,
   Minimize2,
   Eye,
+  ShieldCheck,
 } from "lucide-react";
+import { AdminTrustedStudentModal } from "./AdminTrustedStudentModal";
 
 export function AdminStudentManagement() {
   const [students, setStudents] = useState<any[]>(() => {
@@ -65,8 +67,59 @@ export function AdminStudentManagement() {
   const [convertingStudent, setConvertingStudent] = useState<any>(null);
   const [deletingStudent, setDeletingStudent] = useState<any>(null);
   const [viewingStudentProfile, setViewingStudentProfile] = useState<any | null>(null);
+  const [trustedModalStudent, setTrustedModalStudent] = useState<any | null>(null);
+  const [trustedFilter, setTrustedFilter] = useState<"ALL" | "TRUSTED">("ALL");
   const [expandedAdminProfileBooks, setExpandedAdminProfileBooks] = useState<Record<string, boolean>>({});
   const [isRemovingBook, setIsRemovingBook] = useState<string | null>(null);
+
+  const handleTrustedPermissionsSaved = (updatedData: any) => {
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id !== updatedData.studentId) return s;
+        const authBookSet = new Set(updatedData.authorizedBookIds || []);
+        const updatedAssigned = (s.assignedBooksAsStudent || []).map((sb: any) => ({
+          ...sb,
+          isTrustedForConfig: updatedData.isTrustedStudent && authBookSet.has(sb.bookId || sb.book?.id),
+          minQuestions: updatedData.minQuestions,
+          maxQuestions: updatedData.maxQuestions,
+        }));
+        return {
+          ...s,
+          studentProfile: {
+            ...s.studentProfile,
+            isTrustedStudent: updatedData.isTrustedStudent,
+          },
+          assignedBooksAsStudent: updatedAssigned,
+        };
+      })
+    );
+
+    if (viewingStudentProfile && viewingStudentProfile.id === updatedData.studentId) {
+      setViewingStudentProfile((prev: any) => {
+        if (!prev) return prev;
+        const authBookSet = new Set(updatedData.authorizedBookIds || []);
+        const updatedAssigned = (prev.assignedBooksAsStudent || []).map((sb: any) => ({
+          ...sb,
+          isTrustedForConfig: updatedData.isTrustedStudent && authBookSet.has(sb.bookId || sb.book?.id),
+          minQuestions: updatedData.minQuestions,
+          maxQuestions: updatedData.maxQuestions,
+        }));
+        return {
+          ...prev,
+          studentProfile: {
+            ...prev.studentProfile,
+            isTrustedStudent: updatedData.isTrustedStudent,
+          },
+          assignedBooksAsStudent: updatedAssigned,
+        };
+      });
+    }
+
+    setFeedbackMsg({
+      type: "success",
+      text: "Trusted Student permissions saved successfully.",
+    });
+  };
 
   const handleRemoveAssignedBook = async (studentId: string, bookId: string, bookName: string) => {
     if (
@@ -489,7 +542,13 @@ export function AdminStudentManagement() {
       s.studentProfile?.rollNo?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesGrade =
       selectedGrade === "ALL" || s.studentProfile?.classGrade === selectedGrade;
-    return matchesSearch && matchesGrade;
+    const isTrusted = Boolean(
+      s.studentProfile?.isTrustedStudent ||
+      s.assignedBooksAsStudent?.some((sb: any) => sb.isTrustedForConfig)
+    );
+    const matchesTrusted = trustedFilter === "ALL" || (trustedFilter === "TRUSTED" && isTrusted);
+
+    return matchesSearch && matchesGrade && matchesTrusted;
   });
 
   return (
@@ -581,12 +640,20 @@ export function AdminStudentManagement() {
               {students.reduce((acc, s) => acc + (s._count?.studentAssignments || 0), 0)}
             </div>
           </div>
+          <div className="p-3.5 bg-purple-50/50 rounded-2xl border border-purple-100">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-purple-700">
+              Trusted Students
+            </div>
+            <div className="text-2xl font-black text-purple-900 mt-0.5">
+              {students.filter((s) => s.studentProfile?.isTrustedStudent || s.assignedBooksAsStudent?.some((sb: any) => sb.isTrustedForConfig)).length}
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
       <div className="bg-white rounded-3xl border border-slate-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:w-96">
+        <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           <input
             type="text"
@@ -597,14 +664,39 @@ export function AdminStudentManagement() {
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Grade / Class:</label>
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+          {/* Trusted Filter */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-bold">
+            <button
+              onClick={() => setTrustedFilter("ALL")}
+              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                trustedFilter === "ALL" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              All ({students.length})
+            </button>
+            <button
+              onClick={() => setTrustedFilter("TRUSTED")}
+              className={`px-3 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer ${
+                trustedFilter === "TRUSTED" ? "bg-purple-600 text-white shadow-2xs" : "text-purple-700 hover:text-purple-900"
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>
+                Trusted (
+                {students.filter((s) => s.studentProfile?.isTrustedStudent || s.assignedBooksAsStudent?.some((sb: any) => sb.isTrustedForConfig)).length}
+                )
+              </span>
+            </button>
+          </div>
+
+          <label className="text-xs font-bold text-slate-500 whitespace-nowrap ml-1">Grade:</label>
           <select
             value={selectedGrade}
             onChange={(e) => setSelectedGrade(e.target.value)}
-            className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-semibold text-slate-700 w-full sm:w-auto"
+            className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:border-emerald-500 font-semibold text-slate-700"
           >
-            <option value="ALL">All Classes ({students.length})</option>
+            <option value="ALL">All Classes</option>
             {grades.map((grade) => (
               <option key={grade} value={grade}>
                 {grade}
@@ -661,8 +753,23 @@ export function AdminStudentManagement() {
                           </div>
                         )}
                         <div>
-                          <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                            {student.name}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                              {student.name}
+                            </span>
+                            {Boolean(
+                              student.studentProfile?.isTrustedStudent ||
+                              student.assignedBooksAsStudent?.some((sb: any) => sb.isTrustedForConfig)
+                            ) && (
+                              <span className="px-1.5 py-0.2 rounded-md text-[9px] font-extrabold bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
+                                <ShieldCheck className="w-2.5 h-2.5" />
+                                <span>
+                                  Trusted (
+                                  {student.assignedBooksAsStudent?.filter((sb: any) => sb.isTrustedForConfig).length || 0}{" "}
+                                  bks)
+                                </span>
+                              </span>
+                            )}
                           </div>
                           <div className="text-[11px] text-slate-500">{student.email}</div>
                         </div>
@@ -742,6 +849,15 @@ export function AdminStudentManagement() {
                           className="p-1.5 rounded-lg text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        {/* Trusted Student Permissions Button */}
+                        <button
+                          onClick={() => setTrustedModalStudent(student)}
+                          title="Configure Trusted Student Permissions"
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg text-purple-700 bg-purple-50 hover:bg-purple-100 font-bold text-[11px] transition-colors cursor-pointer border border-purple-200 shadow-2xs"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+                          <span>Permissions</span>
                         </button>
                         {/* Assign Faculty Button */}
                         <button
@@ -1431,6 +1547,41 @@ export function AdminStudentManagement() {
 
             {/* Body */}
             <div className="p-5 overflow-y-auto space-y-5">
+              {/* Trusted Student Configuration Status Card */}
+              <div className="p-4 rounded-2xl border border-purple-200/90 bg-gradient-to-r from-purple-50/70 via-indigo-50/50 to-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 mt-0.5">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-extrabold text-xs text-slate-900">Trusted Student — Exercise Configuration</h4>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold border ${
+                        viewingStudentProfile.studentProfile?.isTrustedStudent || (viewingStudentProfile.assignedBooksAsStudent || []).some((sb: any) => sb.isTrustedForConfig)
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                          : "bg-slate-100 text-slate-600 border-slate-200"
+                      }`}>
+                        {viewingStudentProfile.studentProfile?.isTrustedStudent || (viewingStudentProfile.assignedBooksAsStudent || []).some((sb: any) => sb.isTrustedForConfig)
+                          ? `Active (${(viewingStudentProfile.assignedBooksAsStudent || []).filter((sb: any) => sb.isTrustedForConfig).length} Books Authorized)`
+                          : "Standard Student Access"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Configure whether this student can edit canonical question counts for specific assigned books.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setTrustedModalStudent(viewingStudentProfile)}
+                  className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition-colors shrink-0 flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Configure Permissions</span>
+                </button>
+              </div>
+
               {/* Assigned Books Section */}
               {(() => {
                 const assignedBooks = viewingStudentProfile.assignedBooksAsStudent || [];
@@ -1532,6 +1683,12 @@ export function AdminStudentManagement() {
                                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
                                         {b.curriculumType || "NCERT"}
                                       </span>
+                                      {ab.isTrustedForConfig && (
+                                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1">
+                                          <ShieldCheck className="w-3 h-3 text-purple-600" />
+                                          <span>Config Authorized</span>
+                                        </span>
+                                      )}
                                     </div>
                                     <h4 className="text-sm font-bold text-slate-900 mt-1">
                                       {b.name}
@@ -1638,6 +1795,14 @@ export function AdminStudentManagement() {
           </div>
         </div>
       )}
+
+      {/* TRUSTED STUDENT PERMISSIONS MODAL */}
+      <AdminTrustedStudentModal
+        student={trustedModalStudent}
+        isOpen={Boolean(trustedModalStudent)}
+        onClose={() => setTrustedModalStudent(null)}
+        onSaved={handleTrustedPermissionsSaved}
+      />
     </div>
   );
 }

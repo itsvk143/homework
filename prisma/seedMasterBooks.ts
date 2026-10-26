@@ -12,6 +12,9 @@ export async function seedMasterBooks() {
   const subjectMap = new Map<string, any>();
   for (const s of existingSubjects) {
     subjectMap.set(`${s.name}_${s.classGrade}`, s);
+    if (s.code) {
+      subjectMap.set(s.code, s);
+    }
   }
 
   const existingBooks = await prisma.book.findMany({
@@ -33,7 +36,7 @@ export async function seedMasterBooks() {
   for (const bookData of MASTER_BOOKS) {
     // 1. Ensure Subject exists
     const subKey = `${bookData.subjectName}_${bookData.classGrade}`;
-    let subject = subjectMap.get(subKey);
+    let subject = (bookData.subjectCode && subjectMap.get(bookData.subjectCode)) || subjectMap.get(subKey);
 
     if (!subject) {
       subject = await prisma.subject.create({
@@ -134,7 +137,8 @@ export async function seedMasterBooks() {
         exerciseMap.set(ex.exerciseNumber, ex);
       }
 
-      for (const exData of chData.exercises) {
+      for (let exIdx = 0; exIdx < chData.exercises.length; exIdx++) {
+        const exData = chData.exercises[exIdx];
         const existingEx = exerciseMap.get(exData.exerciseNumber);
 
         if (!existingEx) {
@@ -146,6 +150,7 @@ export async function seedMasterBooks() {
               totalQuestions: exData.totalQuestions,
               questionRange: exData.questionRange || null,
               pageNumber: exData.pageNumber || null,
+              displayOrder: exIdx + 1,
               status: "ACTIVE",
             },
           });
@@ -155,7 +160,8 @@ export async function seedMasterBooks() {
             existingEx.name !== exData.name ||
             existingEx.totalQuestions !== exData.totalQuestions ||
             (existingEx.questionRange || null) !== (exData.questionRange || null) ||
-            (existingEx.pageNumber || null) !== (exData.pageNumber || null);
+            (existingEx.pageNumber || null) !== (exData.pageNumber || null) ||
+            existingEx.displayOrder !== (exIdx + 1);
 
           if (needsUpdate) {
             const updatedEx = await prisma.exercise.update({
@@ -165,6 +171,7 @@ export async function seedMasterBooks() {
                 totalQuestions: exData.totalQuestions,
                 questionRange: exData.questionRange || null,
                 pageNumber: exData.pageNumber || null,
+                displayOrder: exIdx + 1,
               },
             });
             exerciseMap.set(exData.exerciseNumber, updatedEx);
@@ -224,6 +231,24 @@ export async function seedMasterBooks() {
           await prisma.studentBook.create({
             data: { studentId: st.id, bookId: neetAvasthiBook.id, assignedByTeacherId: teacher.id },
           });
+        }
+      }
+
+      // Assign PW Engineering Module to students
+      const pwBook = await prisma.book.findFirst({
+        where: { bookCode: "JEE_CLASS_12_ENGINEERING_PW_MODULE" },
+      });
+      if (pwBook) {
+        const existingPwBooks = await prisma.studentBook.findMany({
+          where: { bookId: pwBook.id },
+        });
+        const assignedPwSet = new Set(existingPwBooks.map((sb) => sb.studentId));
+        for (const st of students) {
+          if (!assignedPwSet.has(st.id)) {
+            await prisma.studentBook.create({
+              data: { studentId: st.id, bookId: pwBook.id, assignedByTeacherId: teacher.id },
+            });
+          }
         }
       }
 

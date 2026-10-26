@@ -133,7 +133,7 @@ export function TeacherChapterProgress({
     const fetchBooks = async () => {
       setLoadingBooks(true);
       try {
-        const res = await fetch("/api/books");
+        const res = await fetch("/api/books?summary=true");
         if (res.ok) {
           const data = await res.json();
           const books = data.books || [];
@@ -190,20 +190,30 @@ export function TeacherChapterProgress({
     allBooks
       .filter((b) => (b.exam || b.curriculumType) === selectedExam)
       .forEach((b) => {
-        if (b.subject && !subjectsMap.has(b.subject.id)) {
-          subjectsMap.set(b.subject.id, { id: b.subject.id, name: b.subject.name });
+        if (b.subject && !subjectsMap.has(b.subject.name)) {
+          subjectsMap.set(b.subject.name, { id: b.subject.id, name: b.subject.name });
         }
       });
     return Array.from(subjectsMap.values());
   }, [allBooks, selectedExam]);
 
+  const selectedSubjectName = useMemo(() => {
+    if (!selectedSubjectId) return "";
+    const foundSub = availableSubjects.find((s) => s.id === selectedSubjectId);
+    if (foundSub) return foundSub.name;
+    const foundBook = allBooks.find((b) => b.subjectId === selectedSubjectId);
+    return foundBook?.subject?.name || "";
+  }, [availableSubjects, allBooks, selectedSubjectId]);
+
   const booksForSubject = useMemo(() => {
     return allBooks.filter(
       (b) =>
         (b.exam || b.curriculumType) === selectedExam &&
-        (!selectedSubjectId || b.subjectId === selectedSubjectId)
+        (!selectedSubjectId ||
+          b.subjectId === selectedSubjectId ||
+          (selectedSubjectName && b.subject?.name === selectedSubjectName))
     );
-  }, [allBooks, selectedExam, selectedSubjectId]);
+  }, [allBooks, selectedExam, selectedSubjectId, selectedSubjectName]);
 
   const selectedBookObj = useMemo(() => {
     return allBooks.find((b) => b.id === selectedBookId) || null;
@@ -238,8 +248,12 @@ export function TeacherChapterProgress({
 
   const handleSubjectChange = (newSubId: string) => {
     setSelectedSubjectId(newSubId);
+    const subObj = availableSubjects.find((s) => s.id === newSubId);
+    const subName = subObj?.name || allBooks.find((b) => b.subjectId === newSubId)?.subject?.name || "";
     const validBooks = allBooks.filter(
-      (b) => (b.exam || b.curriculumType) === selectedExam && b.subjectId === newSubId
+      (b) =>
+        (b.exam || b.curriculumType) === selectedExam &&
+        (b.subjectId === newSubId || (subName && b.subject?.name === subName))
     );
     if (validBooks.length > 0) {
       setSelectedBookId(validBooks[0].id);
@@ -265,31 +279,40 @@ export function TeacherChapterProgress({
   };
 
   // Main API data fetcher supporting both All Chapters and Single Chapter modes
-  const loadMatrix = async () => {
-    if (!selectedBookId) return;
-    if (viewMode === "single" && !selectedChapterId) return;
+  // Main API data fetcher supporting both All Chapters and Single Chapter modes
+  const loadMatrix = async (overrideBookId?: string, overrideChapterId?: string) => {
+    const targetBookId = overrideBookId !== undefined ? overrideBookId : selectedBookId;
+    const targetChapterId = overrideChapterId !== undefined ? overrideChapterId : selectedChapterId;
+
+    if (viewMode === "single" && !targetChapterId && targetBookId) return;
 
     setLoadingMatrix(true);
     try {
       const params = new URLSearchParams({
-        bookId: selectedBookId,
         mode: viewMode,
         includeAllBookStudents: includeAllBookStudents ? "true" : "false",
       });
-      if (viewMode === "single" && selectedChapterId) {
-        params.set("chapterId", selectedChapterId);
+      if (targetBookId) {
+        params.set("bookId", targetBookId);
       }
-      if (searchQuery) params.set("search", searchQuery);
-      if (statusFilter !== "ALL") params.set("status", statusFilter);
-      if (progressRange !== "ALL") params.set("progressRange", progressRange);
-      if (needsAttentionOnly) params.set("needsAttention", "true");
-      if (sortBy) params.set("sortBy", sortBy);
-      if (sortOrder) params.set("sortOrder", sortOrder);
+      if (viewMode === "single" && targetChapterId) {
+        params.set("chapterId", targetChapterId);
+      }
 
       const res = await fetch(`/api/teacher/chapter-progress?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setMatrixData(data);
+
+        // Sync selectors if not yet set
+        if (data.book?.id) {
+          setSelectedBookId((prev) => prev || data.book.id);
+          if (data.book.exam) setSelectedExam((prev) => prev || data.book.exam);
+          if (data.book.subject?.id) setSelectedSubjectId((prev) => prev || data.book.subject.id);
+          if (data.availableChapters?.[0]?.id) {
+            setSelectedChapterId((prev) => prev || data.availableChapters[0].id);
+          }
+        }
       } else {
         console.error("Failed to fetch chapter progress matrix");
       }
@@ -300,8 +323,18 @@ export function TeacherChapterProgress({
     }
   };
 
-  // Trigger matrix fetch on key selector changes or filters
+  // Immediate parallel fetch on initial mount (no waiting for dropdowns to complete)
   useEffect(() => {
+    loadMatrix(initialBookId || undefined, initialChapterId || undefined);
+  }, []);
+
+  // Trigger matrix fetch ONLY on key selector changes (not client filters like search/sort/status)
+  const isMountedRef = React.useRef(false);
+  useEffect(() => {
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      return;
+    }
     if (selectedBookId) {
       if (viewMode === "all" || (viewMode === "single" && selectedChapterId)) {
         loadMatrix();
@@ -312,24 +345,98 @@ export function TeacherChapterProgress({
     selectedChapterId,
     viewMode,
     includeAllBookStudents,
+  ]);
+
+  // In-memory instant filtering and sorting for 60fps responsiveness
+  const processedMatrixData = useMemo(() => {
+    if (!matrixData) return null;
+
+    const filterStudentList = (studentsList: any[]) => {
+      let filtered = (studentsList || []).slice();
+
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase().trim();
+        filtered = filtered.filter(
+          (s: any) =>
+            s.studentName?.toLowerCase().includes(q) ||
+            s.email?.toLowerCase().includes(q) ||
+            s.rollNo?.toLowerCase().includes(q)
+        );
+      }
+
+      if (statusFilter && statusFilter !== "ALL") {
+        if (statusFilter === "NEEDS_REVIEW") {
+          filtered = filtered.filter((s: any) => s.exercises?.some((e: any) => e.needsReview));
+        } else if (statusFilter === "NOT_ASSIGNED") {
+          filtered = filtered.filter((s: any) => s.assignedExerciseCount === 0);
+        } else {
+          filtered = filtered.filter((s: any) => s.primaryStatus === statusFilter);
+        }
+      }
+
+      if (needsAttentionOnly) {
+        filtered = filtered.filter((s: any) => s.needsAttention);
+      }
+
+      if (progressRange && progressRange !== "ALL") {
+        filtered = filtered.filter((s: any) => {
+          if (progressRange === "0") return s.overallProgress === 0;
+          if (progressRange === "1-25") return s.overallProgress >= 1 && s.overallProgress <= 25;
+          if (progressRange === "26-50") return s.overallProgress >= 26 && s.overallProgress <= 50;
+          if (progressRange === "51-75") return s.overallProgress >= 51 && s.overallProgress <= 75;
+          if (progressRange === "76-99") return s.overallProgress >= 76 && s.overallProgress <= 99;
+          if (progressRange === "100") return s.overallProgress === 100;
+          return true;
+        });
+      }
+
+      filtered.sort((a: any, b: any) => {
+        let comparison = 0;
+        if (sortBy === "name") {
+          comparison = (a.studentName || "").localeCompare(b.studentName || "");
+        } else if (sortBy === "overall") {
+          comparison = (a.overallProgress || 0) - (b.overallProgress || 0);
+        } else if (sortBy === "lastUpdated") {
+          const timeA = a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0;
+          const timeB = b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0;
+          comparison = timeA - timeB;
+        } else if (sortBy.startsWith("ex_")) {
+          const exId = sortBy.replace("ex_", "");
+          const cellA = a.exercises?.find((e: any) => e.exerciseId === exId);
+          const cellB = b.exercises?.find((e: any) => e.exerciseId === exId);
+          comparison = (cellA?.percentage || 0) - (cellB?.percentage || 0);
+        }
+        return sortOrder === "desc" ? -comparison : comparison;
+      });
+
+      return filtered;
+    };
+
+    if (matrixData.mode === "all" && matrixData.chapters) {
+      return {
+        ...matrixData,
+        chapters: matrixData.chapters.map((ch: any) => ({
+          ...ch,
+          students: filterStudentList(ch.students),
+        })),
+      };
+    } else if (matrixData.mode === "single" && matrixData.chapter) {
+      return {
+        ...matrixData,
+        students: filterStudentList(matrixData.students),
+      };
+    }
+
+    return matrixData;
+  }, [
+    matrixData,
+    searchQuery,
     statusFilter,
-    progressRange,
     needsAttentionOnly,
+    progressRange,
     sortBy,
     sortOrder,
   ]);
-
-  // Debounced search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (selectedBookId) {
-        if (viewMode === "all" || (viewMode === "single" && selectedChapterId)) {
-          loadMatrix();
-        }
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
 
   // Bookmark Chapter / View
   const isCurrentBookmarked = useMemo(() => {
@@ -1063,7 +1170,7 @@ export function TeacherChapterProgress({
 
             {/* Refresh */}
             <button
-              onClick={loadMatrix}
+              onClick={() => loadMatrix()}
               disabled={loadingMatrix}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all"
             >
@@ -1611,8 +1718,8 @@ export function TeacherChapterProgress({
         </div>
       </div>
 
-      {/* LOADING STATE */}
-      {loadingMatrix && (
+      {/* LOADING STATE (Only on initial load before any data is received) */}
+      {loadingMatrix && !matrixData && (
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
           <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-xs font-semibold text-slate-500">
@@ -1624,18 +1731,18 @@ export function TeacherChapterProgress({
       )}
 
       {/* MATRIX DISPLAY: ALL CHAPTERS VS SINGLE CHAPTER */}
-      {!loadingMatrix && matrixData && (
-        <>
-          {viewMode === "all" && matrixData.chapters ? (
+      {processedMatrixData && (
+        <div className={`transition-opacity duration-150 ${loadingMatrix ? "opacity-60 pointer-events-none" : "opacity-100"}`}>
+          {viewMode === "all" && processedMatrixData.chapters ? (
             <div className="space-y-6">
               {/* Quick Jump Chapter Bar */}
-              {matrixData.chapters.length > 0 && (
+              {processedMatrixData.chapters.length > 0 && (
                 <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-3.5 flex items-center gap-2 overflow-x-auto print:hidden">
                   <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1.5">
                     <Layers className="w-3.5 h-3.5 text-indigo-600" />
                     <span>Quick Jump:</span>
                   </span>
-                  {matrixData.chapters.map((chMatrix: any) => {
+                  {processedMatrixData.chapters.map((chMatrix: any) => {
                     const hasDone = (chMatrix.stats?.completedStudents || 0) > 0;
                     const hasInProgress = (chMatrix.stats?.inProgressStudents || 0) > 0;
                     const hasActivity = hasDone || hasInProgress;
@@ -1668,7 +1775,7 @@ export function TeacherChapterProgress({
                             ● {chMatrix.stats.inProgressStudents}
                           </span>
                         )}
-                        {!hasActivity && (
+                        {hasActivity && (
                           <span className="text-[10px] text-slate-400 font-normal">0 tasks</span>
                         )}
                       </button>
@@ -1677,7 +1784,7 @@ export function TeacherChapterProgress({
                 </div>
               )}
 
-              {matrixData.chapters.length === 0 ? (
+              {processedMatrixData.chapters.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
                   <BookOpen className="w-10 h-10 text-slate-300 mx-auto" />
                   <div className="text-sm font-bold text-slate-700">No chapters found</div>
@@ -1686,22 +1793,22 @@ export function TeacherChapterProgress({
                   </p>
                 </div>
               ) : (
-                matrixData.chapters.map((chMatrix: any) =>
+                processedMatrixData.chapters.map((chMatrix: any) =>
                   renderChapterTable(chMatrix, true)
                 )
               )}
             </div>
-          ) : viewMode === "single" && matrixData.chapter ? (
+          ) : viewMode === "single" && processedMatrixData.chapter ? (
             <div>
               {renderChapterTable({
-                chapter: matrixData.chapter,
-                exercises: matrixData.exercises || [],
-                students: matrixData.students || [],
-                stats: matrixData.stats || {},
+                chapter: processedMatrixData.chapter,
+                exercises: processedMatrixData.exercises || [],
+                students: processedMatrixData.students || [],
+                stats: processedMatrixData.stats || {},
               })}
             </div>
           ) : null}
-        </>
+        </div>
       )}
 
       {/* STUDENT DETAIL DRAWER */}

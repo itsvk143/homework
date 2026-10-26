@@ -23,6 +23,7 @@ import {
 import { BookLibrary } from "./BookLibrary";
 import { AdminTeacherManagement } from "./AdminTeacherManagement";
 import { AdminStudentManagement } from "./AdminStudentManagement";
+import { AdminExerciseAuditHistory } from "./AdminExerciseAuditHistory";
 
 export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<
@@ -576,13 +577,17 @@ export function AdminDashboard() {
       {/* TAB 3: AUDIT LOGS (Requirement 58) */}
       <div className={activeTab === "audit" ? "block" : "hidden"}>
         {visitedTabs.audit && (
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">System Audit Trail</h2>
-              <p className="text-xs text-slate-500">
-                Immutable log of homework assignments, progress updates, verifications, and master content changes.
-              </p>
-            </div>
+          <div className="space-y-6">
+            {/* Trusted Student Exercise Configuration Audit Trail with Restore */}
+            <AdminExerciseAuditHistory />
+
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">System Activity Audit Trail</h2>
+                <p className="text-xs text-slate-500">
+                  Immutable log of homework assignments, progress updates, verifications, and master content changes.
+                </p>
+              </div>
 
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {auditLogs.map((log) => (
@@ -618,6 +623,7 @@ export function AdminDashboard() {
               ))}
             </div>
           </div>
+        </div>
         )}
       </div>
 
