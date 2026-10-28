@@ -13,6 +13,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const body = await req.json();
     const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json(
+        { error: "Authentication required. Please log in." },
+        { status: 401 }
+      );
+    }
 
     // 1. Fetch authoritative homework assignment
     const assignment = await prisma.homeworkAssignment.findUnique({
@@ -31,12 +37,23 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // 2. Authorization check: if student, must be their own homework
-    if (user?.role === "STUDENT" && assignment.studentId !== user.id) {
+    // 2. Authorization check
+    if (user.role === "STUDENT" && assignment.studentId !== user.id) {
       return NextResponse.json(
         { error: "Unauthorized. You can only update your own homework progress." },
         { status: 403 }
       );
+    }
+
+    if (user.role === "TEACHER") {
+      const { isStudentAssignedToTeacher } = await import("@/lib/teacherAuth");
+      const isAssigned = await isStudentAssignedToTeacher(user.id, assignment.studentId);
+      if (!isAssigned) {
+        return NextResponse.json(
+          { error: "Forbidden. You are not authorized to update progress for this student." },
+          { status: 403 }
+        );
+      }
     }
 
     const totalQuestions = assignment.totalQuestions || assignment.exercise.totalQuestions;

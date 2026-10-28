@@ -200,7 +200,15 @@ export async function GET(req: NextRequest) {
           ],
         });
 
-    return NextResponse.json({ books });
+    return NextResponse.json(
+      { books },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+        },
+      }
+    );
   } catch (error) {
     console.error("Error fetching books:", error);
     return NextResponse.json({ error: "Failed to fetch books" }, { status: 500 });

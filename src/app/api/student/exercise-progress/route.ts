@@ -26,6 +26,17 @@ export async function POST(req: NextRequest) {
     // Student can only update their own progress unless teacher/admin
     const studentId = user.role === "STUDENT" ? user.id : reqStudentId || user.id;
 
+    if (user.role === "TEACHER") {
+      const { isStudentAssignedToTeacher } = await import("@/lib/teacherAuth");
+      const isAssigned = await isStudentAssignedToTeacher(user.id, studentId);
+      if (!isAssigned) {
+        return NextResponse.json(
+          { error: "Forbidden. You are not authorized to update progress for this student." },
+          { status: 403 }
+        );
+      }
+    }
+
     // ==============================================================
     // ACTION: BATCH CHAPTER PROGRESS (Mark Whole Chapter Completed or Reset)
     // ==============================================================

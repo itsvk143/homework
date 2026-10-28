@@ -28,7 +28,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Homework assignment not found" }, { status: 404 });
     }
 
-    if (user?.role === "STUDENT" && assignment.studentId !== user.id) {
+    if (!user) {
+      return NextResponse.json({ error: "Authentication required. Please log in." }, { status: 401 });
+    }
+
+    if (user.role === "STUDENT" && assignment.studentId !== user.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 

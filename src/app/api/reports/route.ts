@@ -1,16 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
+import { isStudentAssignedToTeacher } from "@/lib/teacherAuth";
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") || "student"; // "student" | "teacher" | "book"
     const format = searchParams.get("format"); // "json" | "csv"
 
     if (type === "student") {
       const studentId = searchParams.get("studentId");
+      const where: any = {};
+
+      if (user.role === "TEACHER") {
+        if (studentId) {
+          const isAssigned = await isStudentAssignedToTeacher(user.id, studentId);
+          if (!isAssigned) {
+            return NextResponse.json({ error: "Forbidden. You are not assigned to this student." }, { status: 403 });
+          }
+          where.studentId = studentId;
+        }
+        where.student = {
+          assignedTeachersAsStudent: {
+            some: {
+              teacherId: user.id,
+              status: "ACTIVE",
+            },
+          },
+        };
+      } else if (user.role === "STUDENT") {
+        where.studentId = user.id;
+      } else if (user.role === "ADMIN") {
+        if (studentId) where.studentId = studentId;
+      } else {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+
       const assignments = await prisma.homeworkAssignment.findMany({
-        where: studentId ? { studentId } : {},
+        where,
         include: {
           student: true,
           subject: true,

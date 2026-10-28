@@ -39,6 +39,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Homework assignment not found" }, { status: 404 });
     }
 
+    if (user.role === "TEACHER") {
+      const { isStudentAssignedToTeacher } = await import("@/lib/teacherAuth");
+      const isAssigned = await isStudentAssignedToTeacher(user.id, assignment.studentId);
+      if (!isAssigned) {
+        return NextResponse.json(
+          { error: "Forbidden. You are not authorized to override progress for this student." },
+          { status: 403 }
+        );
+      }
+    }
+
     const trueTotal = assignment.exercise?.totalQuestions || assignment.totalQuestions;
 
     if (questionsCompleted < 0 || questionsCompleted > trueTotal) {

@@ -16,22 +16,28 @@ export async function GET(req: NextRequest) {
     const studentId = searchParams.get("studentId");
     const subjectId = searchParams.get("subjectId");
 
-    // If teacher is requesting, they can only see their own assignments unless they are admin
-    if (user.role === "TEACHER" && teacherId && teacherId !== user.id) {
-      return NextResponse.json({ error: "Forbidden. Teachers can only view their own student assignments." }, { status: 403 });
-    }
-
     const whereClause: any = {
       status: "ACTIVE",
     };
 
-    // If student is requesting, scope to their own assignments
-    if (user.role === "STUDENT") {
+    // If teacher is requesting, they can only see their own assignments
+    if (user.role === "TEACHER") {
+      if (teacherId && teacherId !== user.id) {
+        return NextResponse.json({ error: "Forbidden. Teachers can only view their own student assignments." }, { status: 403 });
+      }
+      whereClause.teacherId = user.id;
+      if (studentId) {
+        whereClause.studentId = studentId;
+      }
+    } else if (user.role === "STUDENT") {
       whereClause.studentId = user.id;
+    } else if (user.role === "ADMIN") {
+      if (teacherId) whereClause.teacherId = teacherId;
+      if (studentId) whereClause.studentId = studentId;
+    } else {
+      return NextResponse.json({ error: "Forbidden. Insufficient permissions." }, { status: 403 });
     }
 
-    if (teacherId) whereClause.teacherId = teacherId;
-    if (studentId) whereClause.studentId = studentId;
     if (subjectId) whereClause.subjectId = subjectId;
 
     const assignments = await prisma.teacherStudentAssignment.findMany({

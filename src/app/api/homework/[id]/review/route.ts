@@ -11,6 +11,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Authentication required. Please log in." }, { status: 401 });
+    }
+
+    if (user.role !== "ADMIN" && user.role !== "TEACHER") {
+      return NextResponse.json({ error: "Forbidden. Insufficient permissions." }, { status: 403 });
+    }
+
     const body = await req.json();
 
     const { action, teacherComment } = body; // action: "VERIFY" | "SEND_BACK" | "COMMENT"
@@ -26,6 +34,17 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     if (!assignment) {
       return NextResponse.json({ error: "Homework assignment not found" }, { status: 404 });
+    }
+
+    if (user.role === "TEACHER") {
+      const { isStudentAssignedToTeacher } = await import("@/lib/teacherAuth");
+      const isAssigned = await isStudentAssignedToTeacher(user.id, assignment.studentId);
+      if (!isAssigned) {
+        return NextResponse.json(
+          { error: "Forbidden. You are not authorized to review this student's homework." },
+          { status: 403 }
+        );
+      }
     }
 
     const now = new Date();

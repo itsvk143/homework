@@ -11,23 +11,8 @@ import { GlobalSearchModal } from "@/components/GlobalSearchModal";
 
 export default function Home() {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<any>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem("cb_user_data");
-        if (cached) return JSON.parse(cached);
-      } catch {}
-    }
-    return null;
-  });
-  const [loading, setLoading] = useState(() => {
-    if (typeof window !== "undefined") {
-      try {
-        if (localStorage.getItem("cb_user_data")) return false;
-      } catch {}
-    }
-    return true;
-  });
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [isMobileSimulator, setIsMobileSimulator] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 

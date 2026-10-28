@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const q = searchParams.get("q")?.trim();
 
@@ -18,13 +24,44 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // Build role-scoped student where clause
+    const studentWhere: any = {
+      role: "STUDENT",
+      OR: [{ name: { contains: q } }, { email: { contains: q } }],
+    };
+
+    const homeworkWhere: any = {
+      OR: [
+        { student: { name: { contains: q } } },
+        { exercise: { name: { contains: q } } },
+        { book: { name: { contains: q } } },
+      ],
+    };
+
+    if (user.role === "TEACHER") {
+      studentWhere.assignedTeachersAsStudent = {
+        some: {
+          teacherId: user.id,
+          status: "ACTIVE",
+        },
+      };
+      homeworkWhere.student = {
+        assignedTeachersAsStudent: {
+          some: {
+            teacherId: user.id,
+            status: "ACTIVE",
+          },
+        },
+      };
+    } else if (user.role === "STUDENT") {
+      studentWhere.id = user.id;
+      homeworkWhere.studentId = user.id;
+    }
+
     const [students, teachers, subjects, books, chapters, exercises, homework] = await Promise.all([
       // 1. Students
       prisma.user.findMany({
-        where: {
-          role: "STUDENT",
-          OR: [{ name: { contains: q } }, { email: { contains: q } }],
-        },
+        where: studentWhere,
         include: {
           studentProfile: true,
           _count: { select: { studentAssignments: true } },

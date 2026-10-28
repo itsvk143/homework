@@ -2,12 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { logAuditEvent } from "@/lib/audit";
+import {
+  isStudentAssignedToTeacher,
+  authorizeTeacherForStudents,
+} from "@/lib/teacherAuth";
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await getCurrentUser(req);
+    if (!user) {
+      return NextResponse.json(
+        { error: "Authentication required. Please log in." },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const studentId = searchParams.get("studentId");
-    const teacherId = searchParams.get("teacherId");
+    const requestedTeacherId = searchParams.get("teacherId");
     const subjectId = searchParams.get("subjectId");
     const bookId = searchParams.get("bookId");
     const chapterId = searchParams.get("chapterId");
@@ -23,8 +35,48 @@ export async function GET(req: NextRequest) {
 
     const where: any = {};
 
-    if (studentId) where.studentId = studentId;
-    if (teacherId) where.teacherId = teacherId;
+    if (user.role === "TEACHER") {
+      // Security enforcement: Teachers cannot query another teacher's ID
+      if (requestedTeacherId && requestedTeacherId !== user.id) {
+        return NextResponse.json(
+          { error: "Forbidden. Teachers can only access homework for their own students." },
+          { status: 403 }
+        );
+      }
+
+      // If querying specific student, verify assignment
+      if (studentId) {
+        const isAssigned = await isStudentAssignedToTeacher(user.id, studentId);
+        if (!isAssigned) {
+          return NextResponse.json(
+            { error: "Forbidden. You are not assigned to this student." },
+            { status: 403 }
+          );
+        }
+        where.studentId = studentId;
+      }
+
+      // Automatically scope to students actively assigned to this teacher
+      where.student = {
+        assignedTeachersAsStudent: {
+          some: {
+            teacherId: user.id,
+            status: "ACTIVE",
+          },
+        },
+      };
+    } else if (user.role === "STUDENT") {
+      where.studentId = user.id;
+    } else if (user.role === "ADMIN") {
+      if (studentId) where.studentId = studentId;
+      if (requestedTeacherId) where.teacherId = requestedTeacherId;
+    } else {
+      return NextResponse.json(
+        { error: "Forbidden. Insufficient permissions." },
+        { status: 403 }
+      );
+    }
+
     if (subjectId) where.subjectId = subjectId;
     if (bookId) where.bookId = bookId;
     if (chapterId) where.chapterId = chapterId;
@@ -131,7 +183,21 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(req);
+    if (!user) {
+      return NextResponse.json(
+        { error: "Authentication required. Please log in." },
+        { status: 401 }
+      );
+    }
+
+    if (user.role !== "ADMIN" && user.role !== "TEACHER") {
+      return NextResponse.json(
+        { error: "Forbidden. Only teachers and admins can assign homework." },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
 
     const {
@@ -151,6 +217,17 @@ export async function POST(req: NextRequest) {
     }
     if (!exerciseId || !dueDate) {
       return NextResponse.json({ error: "Exercise and due date are required." }, { status: 400 });
+    }
+
+    // Verify teacher authorization for every student in ids
+    if (user.role === "TEACHER") {
+      const authCheck = await authorizeTeacherForStudents(user, ids);
+      if (!authCheck.authorized) {
+        return NextResponse.json(
+          { error: authCheck.error || "Forbidden. You can only assign homework to students assigned to you." },
+          { status: 403 }
+        );
+      }
     }
 
     // Retrieve exercise to snapshot totalQuestions authoritative value
@@ -174,7 +251,7 @@ export async function POST(req: NextRequest) {
     const resolvedChapterId = chapterId || exercise.chapterId;
     const resolvedBookId = bookId || exercise.chapter.bookId;
     const resolvedSubjectId = subjectId || exercise.chapter.book.subjectId;
-    const teacherId = user?.role === "TEACHER" || user?.role === "ADMIN" ? user.id : (await prisma.user.findFirst({ where: { role: "TEACHER" } }))?.id || "teacher-1";
+    const teacherId = user.id;
 
     const parsedDueDate = new Date(dueDate);
 

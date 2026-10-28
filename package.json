@@ -7,7 +7,8 @@
     "build": "node scripts/build.js && next build",
     "postinstall": "node scripts/postinstall.js",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "tsx tests/teacher-student-isolation.test.ts && tsx tests/book-assignment-workflow.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

@@ -43,6 +43,7 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
   const [homeworkList, setHomeworkList] = useState<any[]>([]);
   const [hierarchy, setHierarchy] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Assignment Wizard state (3-5 clicks flow)
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
@@ -108,6 +109,15 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
             };
           })
         );
+
+        // 3. Dispatch global event so BookLibrary and other listeners update their counts
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("cb_books_assigned", {
+              detail: { bookId, studentId, action: "unassign" },
+            })
+          );
+        }
       } else {
         const data = await res.json();
         alert(data.error || "Failed to remove book");
@@ -120,9 +130,33 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
     }
   };
 
+  // Canonical loader for student profile modal: always fetches freshest database state
+  const handleOpenStudentProfile = async (stu: any) => {
+    if (!stu) {
+      setSelectedStudentProfile(null);
+      return;
+    }
+    setSelectedStudentProfile(stu);
+    try {
+      const res = await fetch(`/api/students/${stu.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.student) {
+          setSelectedStudentProfile(data.student);
+          setStudents((prev) =>
+            prev.map((s) => (s.id === data.student.id ? data.student : s))
+          );
+        }
+      }
+    } catch (err) {
+      console.error("Error loading fresh student profile:", err);
+    }
+  };
+
   // Fetch initial data
   const fetchData = async () => {
     setLoading(true);
+    setFetchError(null);
     try {
       const teacherParam = currentUser?.role === "TEACHER" ? `?teacherId=${currentUser.id}` : "";
       const [stuRes, hwRes] = await Promise.all([
@@ -132,11 +166,26 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
 
       if (stuRes.ok) {
         const sData = await stuRes.json();
-        setStudents(sData.students || []);
+        const fetchedStudents = sData.students || [];
+        setStudents(fetchedStudents);
+
+        // Keep active student profile synchronized with fresh database query
+        setSelectedStudentProfile((prev: any) => {
+          if (!prev) return null;
+          const fresh = fetchedStudents.find((s: any) => s.id === prev.id);
+          return fresh ? { ...fresh } : prev;
+        });
+      } else {
+        const errData = await stuRes.json().catch(() => ({}));
+        setFetchError(errData.error || "Failed to load authorized student data.");
+        setStudents([]);
       }
+
       if (hwRes.ok) {
         const hData = await hwRes.json();
         setHomeworkList(hData.assignments || []);
+      } else {
+        setHomeworkList([]);
       }
 
       // Fetch hierarchy in background without delaying stats and default chapterProgress view
@@ -146,8 +195,9 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
           if (hiData?.subjects) setHierarchy(hiData.subjects);
         })
         .catch((e) => console.error("Error loading hierarchy in background:", e));
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setFetchError(err.message || "Network error loading dashboard data.");
     } finally {
       setLoading(false);
     }
@@ -155,7 +205,33 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
 
   useEffect(() => {
     fetchData();
-  }, []);
+
+    const handleBookAssigned = () => {
+      fetchData();
+      // If modal is currently open, proactively re-fetch full student record from API
+      setSelectedStudentProfile((prev: any) => {
+        if (!prev?.id) return prev;
+        fetch(`/api/students/${prev.id}`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (data?.student) {
+              setSelectedStudentProfile(data.student);
+            }
+          })
+          .catch((err) => console.error("Error refreshing active student:", err));
+        return prev;
+      });
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("cb_books_assigned", handleBookAssigned);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("cb_books_assigned", handleBookAssigned);
+      }
+    };
+  }, [currentUser?.id]);
 
   // Determine subjects assigned to this teacher or matching specialty
   const teacherAuthorizedSubjects = React.useMemo(() => {
@@ -353,6 +429,22 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
 
   return (
     <div className="space-y-6">
+      {/* Authorization or network fetch error banner */}
+      {fetchError && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between text-xs font-semibold text-rose-800">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{fetchError}</span>
+          </div>
+          <button
+            onClick={() => fetchData()}
+            className="px-3 py-1 bg-white border border-rose-300 rounded-xl text-rose-700 hover:bg-rose-100 font-bold transition-all cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Top Banner & Stats Overview (Requirement 36) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
@@ -361,7 +453,9 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
             <Users className="w-4 h-4 text-indigo-600" />
           </div>
           <div className="text-2xl font-black text-slate-900 mt-2">{totalStudents}</div>
-          <span className="text-[10px] text-slate-400">Class 8th Enrolled</span>
+          <span className="text-[10px] text-slate-400">
+            {totalStudents === 1 ? "1 Enrolled Student" : `${totalStudents} Enrolled Students`}
+          </span>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
@@ -567,7 +661,7 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
                         <tr key={hw.id} className="hover:bg-slate-50/60 transition-colors">
                           <td className="py-3 px-4">
                             <button
-                              onClick={() => setSelectedStudentProfile(hw.student)}
+                              onClick={() => handleOpenStudentProfile(hw.student)}
                               className="font-bold text-slate-900 hover:text-indigo-600 text-left transition-colors"
                             >
                               {hw.student.name}
@@ -909,7 +1003,7 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
 
       {/* TAB: MASTER BOOK LIBRARY */}
       {activeTab === "library" && (
-        <BookLibrary currentUser={currentUser} />
+        <BookLibrary currentUser={currentUser} onBookAssigned={fetchData} />
       )}
 
       {/* TAB 3: HOMEWORK REVIEW & VERIFICATION QUEUE (Requirements 34 & 35) */}
@@ -1001,8 +1095,17 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
 
       {/* TAB 4: STUDENT PROFILES & DRILLDOWNS (Requirements 37 & 38) */}
       {activeTab === "students" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {students.map((stu) => {
+        students.length === 0 ? (
+          <div className="py-16 text-center bg-white rounded-3xl border border-dashed border-slate-300 p-8">
+            <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+            <h3 className="font-bold text-base text-slate-700">No Assigned Students</h3>
+            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+              You do not have any students assigned to your faculty profile yet. When an administrator assigns students to you, they will appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {students.map((stu) => {
             const stuHomework = homeworkList.filter((h) => h.studentId === stu.id);
             const total = stuHomework.length;
             const completed = stuHomework.filter((h) => h.exerciseStatus === "COMPLETED").length;
@@ -1012,7 +1115,7 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
             return (
               <div
                 key={stu.id}
-                onClick={() => setSelectedStudentProfile(stu)}
+                onClick={() => handleOpenStudentProfile(stu)}
                 className="p-5 bg-white rounded-3xl border border-slate-200/80 shadow-xs hover:border-indigo-400 hover:shadow-md cursor-pointer transition-all space-y-4"
               >
                 <div className="flex items-center gap-3">
@@ -1084,6 +1187,7 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
             );
           })}
         </div>
+        )
       )}
 
       {/* REVIEW & VERIFICATION MODAL (Requirements 34 & 35) */}
@@ -1233,19 +1337,38 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => setSelectedStudentProfile(null)}
-                className="p-1 rounded-full text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleOpenStudentProfile(selectedStudentProfile)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-white transition-colors"
+                  title="Refresh student profile"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setSelectedStudentProfile(null)}
+                  className="p-1 rounded-full text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             <div className="p-5 overflow-y-auto space-y-5">
               {/* ASSIGNED BOOKS SECTION WITH EXPAND / COMPRESS CONTROLS */}
               {(() => {
                 const assignedBooks = selectedStudentProfile.assignedBooksAsStudent || [];
-                if (assignedBooks.length === 0) return null;
+                if (assignedBooks.length === 0) {
+                  return (
+                    <div className="p-5 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center space-y-1">
+                      <p className="text-xs font-bold text-slate-700">No curriculum books currently assigned</p>
+                      <p className="text-[11px] text-slate-400">
+                        Open the Master Book Library tab to assign reference and NCERT books to this student.
+                      </p>
+                    </div>
+                  );
+                }
 
                 const expandAllProfileBooks = () => {
                   const next: Record<string, boolean> = {};
@@ -1444,37 +1567,50 @@ export function TeacherDashboard({ currentUser }: TeacherDashboardProps) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {homeworkList
-                      .filter((h) => h.studentId === selectedStudentProfile.id)
-                      .map((hw) => (
-                        <tr key={hw.id}>
-                          <td className="p-3 font-bold text-slate-900">
-                            {hw.exercise.name}
-                            <span className="text-[10px] font-normal text-slate-500 block">
-                              {hw.book.name}
-                            </span>
-                          </td>
-                          <td className="p-3 text-center">{hw.totalQuestions}</td>
-                          <td className="p-3 text-center font-bold text-indigo-600">
-                            {hw.questionsCompleted}
-                          </td>
-                          <td className="p-3 text-center">
-                            {Math.max(0, hw.totalQuestions - hw.questionsCompleted)}
-                          </td>
-                          <td className="p-3 text-center font-bold">{hw.progressPercentage}%</td>
-                          <td className="p-3">
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                hw.exerciseStatus === "COMPLETED"
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : "bg-amber-50 text-amber-700"
-                              }`}
-                            >
-                              {hw.exerciseStatus}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                    {homeworkList.filter((h) => h.studentId === selectedStudentProfile.id).length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-slate-400">
+                          <p className="font-semibold text-slate-600">
+                            No specific homework exercises assigned yet for {selectedStudentProfile.name}.
+                          </p>
+                          <span className="text-[11px] text-slate-400 block mt-1">
+                            {(selectedStudentProfile.assignedBooksAsStudent || []).length} assigned book(s) and chapters are listed above for student practice and tracking.
+                          </span>
+                        </td>
+                      </tr>
+                    ) : (
+                      homeworkList
+                        .filter((h) => h.studentId === selectedStudentProfile.id)
+                        .map((hw) => (
+                          <tr key={hw.id}>
+                            <td className="p-3 font-bold text-slate-900">
+                              {hw.exercise.name}
+                              <span className="text-[10px] font-normal text-slate-500 block">
+                                {hw.book.name}
+                              </span>
+                            </td>
+                            <td className="p-3 text-center">{hw.totalQuestions}</td>
+                            <td className="p-3 text-center font-bold text-indigo-600">
+                              {hw.questionsCompleted}
+                            </td>
+                            <td className="p-3 text-center">
+                              {Math.max(0, hw.totalQuestions - hw.questionsCompleted)}
+                            </td>
+                            <td className="p-3 text-center font-bold">{hw.progressPercentage}%</td>
+                            <td className="p-3">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  hw.exerciseStatus === "COMPLETED"
+                                    ? "bg-emerald-50 text-emerald-700"
+                                    : "bg-amber-50 text-amber-700"
+                                }`}
+                              >
+                                {hw.exerciseStatus}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -27,9 +27,10 @@ import {
 interface BookLibraryProps {
   onAssignBook?: (book: any) => void;
   currentUser?: any;
+  onBookAssigned?: () => void;
 }
 
-export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
+export function BookLibrary({ onAssignBook, currentUser, onBookAssigned }: BookLibraryProps) {
   const [books, setBooks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [subjects, setSubjects] = useState<any[]>([]);
@@ -52,6 +53,7 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
   const [assignStudentFilter, setAssignStudentFilter] = useState<"ELIGIBLE" | "ALL">("ELIGIBLE");
   const [isAssigning, setIsAssigning] = useState(false);
   const [assignSuccess, setAssignSuccess] = useState<string | null>(null);
+  const [assignError, setAssignError] = useState<string | null>(null);
 
   // Add New Book modal state
   const [isAddBookModalOpen, setIsAddBookModalOpen] = useState(false);
@@ -131,7 +133,8 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
 
   const fetchStudents = async () => {
     try {
-      const res = await fetch("/api/students");
+      const teacherParam = currentUser?.role === "TEACHER" ? `?teacherId=${currentUser.id}` : "";
+      const res = await fetch(`/api/students${teacherParam}`);
       if (res.ok) {
         const data = await res.json();
         setStudents(data.students || []);
@@ -164,7 +167,21 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
   useEffect(() => {
     fetchStudents();
     fetchSubjects();
-  }, []);
+
+    const handleBooksChanged = () => {
+      fetchBooks();
+      fetchStudents();
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("cb_books_assigned", handleBooksChanged);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("cb_books_assigned", handleBooksChanged);
+      }
+    };
+  }, [currentUser?.id]);
 
   const handleAddChapterRow = () => {
     const nextNum = newBook.chapters.length + 1;
@@ -619,12 +636,14 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
     setAssignStudentFilter("ELIGIBLE");
     setSelectedStudentIds([]);
     setAssignSuccess(null);
+    setAssignError(null);
   };
 
   const handleConfirmAssign = async () => {
     if (!assigningBook || selectedStudentIds.length === 0) return;
     setIsAssigning(true);
     setAssignSuccess(null);
+    setAssignError(null);
 
     try {
       const res = await fetch("/api/student-books", {
@@ -633,20 +652,47 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
         body: JSON.stringify({
           studentIds: selectedStudentIds,
           bookId: assigningBook.id,
+          teacherId: currentUser?.id,
         }),
       });
 
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success) {
         setAssignSuccess(
-          `"${assigningBook.name}" assigned successfully to ${selectedStudentIds.length} student(s)!`
+          data.message ||
+            `"${assigningBook.name}" assigned successfully to ${selectedStudentIds.length} student(s)!`
         );
+        // Refresh local students cache AND books cache so assignment count updates immediately
+        await Promise.all([fetchStudents(), fetchBooks()]);
+
+        // Dispatch global event for parent dashboards with complete payload
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("cb_books_assigned", {
+              detail: {
+                bookId: assigningBook.id,
+                count: selectedStudentIds.length,
+                studentIds: selectedStudentIds,
+                assignments: data.assignments,
+              },
+            })
+          );
+        }
+        if (onBookAssigned) {
+          onBookAssigned();
+        }
         setTimeout(() => {
           setAssigningBook(null);
           setAssignSuccess(null);
-        }, 1800);
+          setAssignError(null);
+        }, 2200);
+      } else {
+        setAssignError(data.error || "Failed to assign book to student(s).");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setAssignError(err.message || "Network error while assigning book.");
     } finally {
       setIsAssigning(false);
     }
@@ -878,8 +924,8 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
                     <span className="font-semibold text-indigo-700">
                       {b.chapters?.length || 0} Chapters Preloaded
                     </span>
-                    <span className="text-[11px] text-slate-400">
-                      {b._count?.homeworks || 0} assignments active
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      {(b._count?.studentBooks ?? b.studentBooks?.length ?? 0)} assignments active
                     </span>
                   </div>
                 </div>
@@ -1148,6 +1194,13 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
                     </div>
                   )}
 
+                  {assignError && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold text-rose-800 flex items-center gap-2">
+                      <X className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>{assignError}</span>
+                    </div>
+                  )}
+
                   {/* Target stream banner */}
                   <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                     <div>
@@ -1225,51 +1278,71 @@ export function BookLibrary({ onAssignBook, currentUser }: BookLibraryProps) {
                   </div>
 
                   <div className="space-y-2 max-h-56 overflow-y-auto">
-                    {displayedStudents.map((stu) => {
-                      const isChecked = selectedStudentIds.includes(stu.id);
-                      const isEligible = isStudentEligibleForBook(stu);
+                    {displayedStudents.length === 0 ? (
+                      <div className="py-8 px-4 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
+                        <p className="text-xs font-bold text-slate-600">No assigned students available for this book.</p>
+                        <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
+                          {currentUser?.role === "TEACHER"
+                            ? "Only students explicitly assigned to your faculty account are visible here."
+                            : "No students are enrolled in this class."}
+                        </p>
+                      </div>
+                    ) : (
+                      displayedStudents.map((stu) => {
+                        const isChecked = selectedStudentIds.includes(stu.id);
+                        const isEligible = isStudentEligibleForBook(stu);
+                        const isAlreadyAssigned = Boolean(
+                          stu.assignedBooksAsStudent?.some(
+                            (ab: any) => (ab.bookId || ab.book?.id) === assigningBook.id
+                          )
+                        );
 
-                      return (
-                        <div
-                          key={stu.id}
-                          onClick={() => {
-                            if (isChecked) {
-                              setSelectedStudentIds((prev) => prev.filter((id) => id !== stu.id));
-                            } else {
-                              setSelectedStudentIds((prev) => [...prev, stu.id]);
-                            }
-                          }}
-                          className={`p-3 rounded-xl border cursor-pointer transition-colors flex items-center justify-between text-xs ${
-                            isChecked
-                              ? "bg-indigo-50 border-indigo-500 font-bold text-indigo-900"
-                              : "bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              readOnly
-                              className="w-4 h-4 rounded text-indigo-600 pointer-events-none"
-                            />
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <p className="font-bold">{stu.name}</p>
-                                {isEligible && (
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                    Target Match
-                                  </span>
-                                )}
+                        return (
+                          <div
+                            key={stu.id}
+                            onClick={() => {
+                              if (isChecked) {
+                                setSelectedStudentIds((prev) => prev.filter((id) => id !== stu.id));
+                              } else {
+                                setSelectedStudentIds((prev) => [...prev, stu.id]);
+                              }
+                            }}
+                            className={`p-3 rounded-xl border cursor-pointer transition-colors flex items-center justify-between text-xs ${
+                              isChecked
+                                ? "bg-indigo-50 border-indigo-500 font-bold text-indigo-900"
+                                : "bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                readOnly
+                                className="w-4 h-4 rounded text-indigo-600 pointer-events-none"
+                              />
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="font-bold">{stu.name}</p>
+                                  {isAlreadyAssigned ? (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200">
+                                      Already Assigned
+                                    </span>
+                                  ) : isEligible ? (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                      Target Match
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <p className="text-[10px] text-slate-400 font-normal">
+                                  {stu.studentProfile?.classGrade} • Roll #{stu.studentProfile?.rollNo || "--"}
+                                </p>
                               </div>
-                              <p className="text-[10px] text-slate-400 font-normal">
-                                {stu.studentProfile?.classGrade} • Roll #{stu.studentProfile?.rollNo || "--"}
-                              </p>
                             </div>
+                            <span className="text-[10px] text-slate-400">{stu.email}</span>
                           </div>
-                          <span className="text-[10px] text-slate-400">{stu.email}</span>
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               );

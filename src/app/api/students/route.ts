@@ -7,14 +7,85 @@ import { getNextRollNumber } from "@/lib/rollNumber";
 // GET all students
 export async function GET(req: NextRequest) {
   try {
+    const user = await getCurrentUser(req);
+    if (!user) {
+      return NextResponse.json(
+        { error: "Authentication required. Please log in." },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search")?.toLowerCase();
-    const teacherId = searchParams.get("teacherId");
+    const requestedTeacherId = searchParams.get("teacherId");
     const subjectId = searchParams.get("subjectId");
+    const requestedStudentId = searchParams.get("id") || searchParams.get("studentId");
 
     const whereClause: any = {
       role: "STUDENT",
     };
+
+    if (user.role === "TEACHER") {
+      // Security enforcement: Teachers CANNOT view global student lists or other teachers' students.
+      // If client attempts to specify a different teacherId, deny with 403.
+      if (requestedTeacherId && requestedTeacherId !== user.id) {
+        return NextResponse.json(
+          { error: "Forbidden. Teachers can only access their own student roster." },
+          { status: 403 }
+        );
+      }
+
+      // If a specific student is requested, verify teacher assignment
+      if (requestedStudentId) {
+        const isAssigned = await prisma.teacherStudentAssignment.findFirst({
+          where: {
+            teacherId: user.id,
+            studentId: requestedStudentId,
+            status: "ACTIVE",
+            ...(subjectId ? { subjectId } : {}),
+          },
+        });
+
+        if (!isAssigned) {
+          return NextResponse.json(
+            { error: "Forbidden. You are not assigned to this student." },
+            { status: 403 }
+          );
+        }
+        whereClause.id = requestedStudentId;
+      }
+
+      // Automatically enforce isolation to ONLY active assigned students for this teacher
+      whereClause.assignedTeachersAsStudent = {
+        some: {
+          teacherId: user.id,
+          status: "ACTIVE",
+          ...(subjectId ? { subjectId } : {}),
+        },
+      };
+    } else if (user.role === "ADMIN") {
+      // Admin has full global visibility; optionally filters by teacherId or studentId if specified
+      if (requestedStudentId) {
+        whereClause.id = requestedStudentId;
+      }
+      if (requestedTeacherId) {
+        whereClause.assignedTeachersAsStudent = {
+          some: {
+            teacherId: requestedTeacherId,
+            status: "ACTIVE",
+            ...(subjectId ? { subjectId } : {}),
+          },
+        };
+      }
+    } else if (user.role === "STUDENT") {
+      // Students can only view their own profile
+      whereClause.id = user.id;
+    } else {
+      return NextResponse.json(
+        { error: "Forbidden. Insufficient permissions." },
+        { status: 403 }
+      );
+    }
 
     if (search) {
       whereClause.OR = [
@@ -22,16 +93,6 @@ export async function GET(req: NextRequest) {
         { email: { contains: search } },
         { studentProfile: { classGrade: { contains: search } } },
       ];
-    }
-
-    if (teacherId) {
-      whereClause.assignedTeachersAsStudent = {
-        some: {
-          teacherId,
-          status: "ACTIVE",
-          ...(subjectId ? { subjectId } : {}),
-        },
-      };
     }
 
     const students = await prisma.user.findMany({
@@ -42,6 +103,8 @@ export async function GET(req: NextRequest) {
           where: { status: "ACTIVE" },
           select: {
             id: true,
+            teacherId: true,
+            subjectId: true,
             teacher: {
               select: { id: true, name: true, teacherProfile: { select: { phone: true } } },
             },
@@ -76,8 +139,14 @@ export async function GET(req: NextRequest) {
       orderBy: { name: "asc" },
     });
 
-    // Auto-restore core student LV TAX CONSULTANCY if missing from this container
-    if (!search && !teacherId && !students.some((s) => s.email?.toLowerCase() === "lvtaxconsultant@gmail.com")) {
+    // Auto-restore core student LV TAX CONSULTANCY if missing from this container (ADMIN ONLY)
+    if (
+      user.role === "ADMIN" &&
+      !search &&
+      !requestedTeacherId &&
+      !requestedStudentId &&
+      !students.some((s) => s.email?.toLowerCase() === "lvtaxconsultant@gmail.com")
+    ) {
       try {
         const restoredStudent = await prisma.user.create({
           data: {
@@ -102,6 +171,8 @@ export async function GET(req: NextRequest) {
               where: { status: "ACTIVE" },
               select: {
                 id: true,
+                teacherId: true,
+                subjectId: true,
                 teacher: {
                   select: { id: true, name: true, teacherProfile: { select: { phone: true } } },
                 },
@@ -160,7 +231,7 @@ export async function GET(req: NextRequest) {
 // POST create new student
 export async function POST(req: NextRequest) {
   try {
-    const admin = await getCurrentUser();
+    const admin = await getCurrentUser(req);
     if (!admin || admin.role !== "ADMIN") {
       return NextResponse.json(
         { error: "Unauthorized. Admin privileges required." },
@@ -240,7 +311,7 @@ export async function POST(req: NextRequest) {
 // PUT modify student or convert to teacher
 export async function PUT(req: NextRequest) {
   try {
-    const admin = await getCurrentUser();
+    const admin = await getCurrentUser(req);
     if (!admin || admin.role !== "ADMIN") {
       return NextResponse.json(
         { error: "Unauthorized. Admin privileges required." },
@@ -396,7 +467,7 @@ export async function PUT(req: NextRequest) {
 // DELETE student
 export async function DELETE(req: NextRequest) {
   try {
-    const admin = await getCurrentUser();
+    const admin = await getCurrentUser(req);
     if (!admin || admin.role !== "ADMIN") {
       return NextResponse.json(
         { error: "Unauthorized. Admin privileges required." },

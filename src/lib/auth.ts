@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import crypto from "crypto";
 import { prisma } from "./prisma";
 
@@ -102,17 +102,63 @@ export function verifySessionToken(token: string | null | undefined): SessionPay
 }
 
 export async function getCurrentUser(
-  fallbackEmailOrId?: string | null,
+  reqOrFallback?: any,
   fallbackToken?: string | null,
   fallbackRole?: string | null
 ) {
-  const cookieStore = await cookies();
-  const userIdCookie = cookieStore.get("cb_user_id")?.value;
-  const userEmailCookie = cookieStore.get("cb_user_email")?.value;
-  const sessionTokenCookie = cookieStore.get("cb_session")?.value;
-  const userRoleCookie = cookieStore.get("cb_user_role")?.value;
+  let cookieStore: any = null;
+  let headerStore: any = null;
 
-  // Verify session token from cookie or fallback
+  try {
+    cookieStore = await cookies();
+  } catch {}
+
+  try {
+    headerStore = await headers();
+  } catch {}
+
+  const isReq =
+    reqOrFallback &&
+    typeof reqOrFallback === "object" &&
+    ("headers" in reqOrFallback || "cookies" in reqOrFallback);
+  const reqObj = isReq ? reqOrFallback : null;
+  const fallbackEmailOrId = isReq ? null : reqOrFallback;
+
+  const reqCookieStr = reqObj?.headers?.get?.("cookie") || "";
+  const parseCookie = (name: string) => {
+    const match = reqCookieStr.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+    return match ? decodeURIComponent(match[1]) : null;
+  };
+
+  const userIdCookie =
+    reqObj?.cookies?.get?.("cb_user_id")?.value ||
+    parseCookie("cb_user_id") ||
+    reqObj?.headers?.get?.("x-user-id") ||
+    cookieStore?.get("cb_user_id")?.value ||
+    headerStore?.get("x-user-id");
+
+  const userEmailCookie =
+    reqObj?.cookies?.get?.("cb_user_email")?.value ||
+    parseCookie("cb_user_email") ||
+    reqObj?.headers?.get?.("x-user-email") ||
+    cookieStore?.get("cb_user_email")?.value ||
+    headerStore?.get("x-user-email");
+
+  const sessionTokenCookie =
+    reqObj?.cookies?.get?.("cb_session")?.value ||
+    parseCookie("cb_session") ||
+    reqObj?.headers?.get?.("x-session-token") ||
+    cookieStore?.get("cb_session")?.value ||
+    headerStore?.get("x-session-token");
+
+  const userRoleCookie =
+    reqObj?.cookies?.get?.("cb_user_role")?.value ||
+    parseCookie("cb_user_role") ||
+    reqObj?.headers?.get?.("x-user-role") ||
+    cookieStore?.get("cb_user_role")?.value ||
+    headerStore?.get("x-user-role");
+
+  // Verify session token from cookie or header or fallback
   const verifiedSession =
     verifySessionToken(sessionTokenCookie) ||
     verifySessionToken(fallbackToken);

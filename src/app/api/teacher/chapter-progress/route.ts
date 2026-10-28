@@ -373,7 +373,7 @@ export async function GET(req: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "name"; // name, overall, lastUpdated, ex_<id>
     const sortOrder = searchParams.get("sortOrder") || "asc";
 
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(req);
     // Allow teachers and admins
     if (!user || (user.role !== "TEACHER" && user.role !== "ADMIN")) {
       return NextResponse.json({ error: "Unauthorized. Teacher or Admin access required." }, { status: 403 });
@@ -445,7 +445,14 @@ export async function GET(req: NextRequest) {
       exerciseCount: c.exercises.length,
     }));
 
-    const teacherIdFilter = user.role === "TEACHER" ? user.id : (searchParams.get("teacherId") || null);
+    const requestedTeacherId = searchParams.get("teacherId");
+    if (user.role === "TEACHER" && requestedTeacherId && requestedTeacherId !== user.id) {
+      return NextResponse.json(
+        { error: "Forbidden. Teachers can only access chapter progress for their assigned students." },
+        { status: 403 }
+      );
+    }
+    const teacherIdFilter = user.role === "TEACHER" ? user.id : (requestedTeacherId || null);
 
     // Map student ID to student records
     const studentUserMap = new Map<string, any>();
@@ -527,17 +534,20 @@ export async function GET(req: NextRequest) {
         }),
       ]);
 
+      // Populate studentUserMap: TEACHERS only get explicitly assigned students
       for (const a of assignments) {
         if (a.student) studentUserMap.set(a.student.id, a.student);
       }
-      for (const sb of bookStudents) {
-        if (sb.student && !studentUserMap.has(sb.student.id)) {
-          studentUserMap.set(sb.student.id, sb.student);
+      if (user.role === "ADMIN") {
+        for (const sb of bookStudents) {
+          if (sb.student && !studentUserMap.has(sb.student.id)) {
+            studentUserMap.set(sb.student.id, sb.student);
+          }
         }
-      }
-      for (const hw of allHomeworkInBook) {
-        if (hw.student && !studentUserMap.has(hw.student.id)) {
-          studentUserMap.set(hw.student.id, hw.student);
+        for (const hw of allHomeworkInBook) {
+          if (hw.student && !studentUserMap.has(hw.student.id)) {
+            studentUserMap.set(hw.student.id, hw.student);
+          }
         }
       }
 
@@ -724,17 +734,20 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
+    // Populate studentUserMap: TEACHERS only get explicitly assigned students
     for (const a of assignments) {
       if (a.student) studentUserMap.set(a.student.id, a.student);
     }
-    for (const sb of bookStudents) {
-      if (sb.student && !studentUserMap.has(sb.student.id)) {
-        studentUserMap.set(sb.student.id, sb.student);
+    if (user.role === "ADMIN") {
+      for (const sb of bookStudents) {
+        if (sb.student && !studentUserMap.has(sb.student.id)) {
+          studentUserMap.set(sb.student.id, sb.student);
+        }
       }
-    }
-    for (const hw of homeworkInChapter) {
-      if (hw.student && !studentUserMap.has(hw.student.id)) {
-        studentUserMap.set(hw.student.id, hw.student);
+      for (const hw of homeworkInChapter) {
+        if (hw.student && !studentUserMap.has(hw.student.id)) {
+          studentUserMap.set(hw.student.id, hw.student);
+        }
       }
     }
 
